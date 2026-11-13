@@ -1,4 +1,4 @@
-# Global .gitignore for gemini-cli project
+# Global .gitignore
 
 # Python
 __pycache__/
@@ -16,12 +16,6 @@ env/
 .DS_Store
 Thumbs.db
 
-# Gemini CLI specific files
-.gemini/
-projects.json
-state.json
-installation_id
-
 # Database
 *.db
 backend/.env
@@ -31,10 +25,6 @@ backend/app.db
 tmp/
 history/
 
-# Ignora file non del backend nel repo root
-skills/
-download.html
-GEMINI.md
 
 # Credenziali Google OAuth (mai nel repository)
 .env

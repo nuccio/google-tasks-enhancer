@@ -2,10 +2,14 @@ import pytest
 from unittest.mock import patch, MagicMock
 from backend import crud
 
-def test_root_redirect_to_login(client):
+def test_root_serves_frontend(client):
+    # Login is handled by the frontend: "/" is public and never redirects.
     response = client.get("/", follow_redirects=False)
-    assert response.status_code == 307
-    assert "/auth/login/google" in response.headers["location"]
+    assert response.status_code == 200
+
+def test_me_unauthorized(client):
+    response = client.get("/auth/me")
+    assert response.status_code == 401
 
 def test_get_tasks_unauthorized(client):
     response = client.get("/tasks/")
