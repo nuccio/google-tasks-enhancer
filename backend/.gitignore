@@ -1,0 +1,12 @@
+# Python
+__pycache__/
+*.pyc
+
+# Database
+*.db
+
+# Credentials
+credentials.json
+.env
+# Credentials
+client_secret*.json

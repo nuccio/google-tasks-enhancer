@@ -1,0 +1,163 @@
+/* frontend/src/App.css */
+
+#root {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+
+.App {
+    text-align: center;
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.loading, .error {
+    padding: 20px;
+    font-size: 1.2em;
+    color: #555;
+}
+
+.error {
+    color: #d32f2f;
+}
+
+.login-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    flex-grow: 1;
+    padding: 20px;
+}
+
+.login-button {
+    background-color: #4285f4;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 1em;
+    margin-top: 20px;
+}
+
+.login-button:hover {
+    background-color: #357ae8;
+}
+
+.app-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 20px;
+    background-color: #282c34;
+    color: white;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.header-left h1 {
+    margin: 0;
+    font-size: 1.5em;
+}
+
+.user-email {
+    font-size: 0.9em;
+    color: #a0a0a0;
+    margin-left: 15px;
+}
+
+.sync-button {
+    background-color: #61dafb;
+    color: #282c34;
+    border: none;
+    padding: 8px 15px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 0.9em;
+}
+
+.sync-button:disabled {
+    background-color: #cccccc;
+    cursor: not-allowed;
+}
+
+.main-content {
+    flex-grow: 1;
+    padding: 20px;
+    overflow-x: auto; /* For responsive tables */
+}
+
+.task-table-container {
+    width: 100%;
+    overflow-x: auto;
+}
+
+.task-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+}
+
+.task-table th, .task-table td {
+    border: 1px solid #ddd;
+    padding: 8px;
+    text-align: left;
+    color: #333; /* Ensure dark text on light backgrounds */
+}
+
+.task-table th {
+    background-color: #e0e0e0;
+    font-weight: bold;
+}
+
+.task-table tr:nth-child(even) {
+    background-color: #f0f0f0; /* Slightly darker than #f9f9f9 */
+}
+
+.task-table tr:hover {
+    background-color: #dcdcdc;
+}
+
+.task-row.completed {
+    text-decoration: line-through;
+    color: #666; /* Darker gray for completed tasks */
+}
+
+@media (prefers-color-scheme: dark) {
+    .task-table th, .task-table td {
+        color: #eee; /* Light text for dark backgrounds */
+        border-color: #555;
+    }
+    .task-table th {
+        background-color: #3a3a3a;
+    }
+    .task-table tr:nth-child(even) {
+        background-color: #2e2e2e;
+    }
+    .task-table tr:hover {
+        background-color: #4a4a4a;
+    }
+    .task-row.completed {
+        color: #aaa; /* Lighter gray for completed tasks in dark mode */
+    }
+}
+
+.task-row.updating {
+    opacity: 0.6;
+    pointer-events: none;
+}
+
+.task-table input[type="checkbox"] {
+    transform: scale(1.2);
+    cursor: pointer;
+}
+
+.task-table select, .task-table input[type="text"], .task-table input[type="number"] {
+    width: 100%;
+    padding: 5px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    box-sizing: border-box; /* Ensures padding doesn't increase width */
+}
