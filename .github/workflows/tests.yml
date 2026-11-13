@@ -1,0 +1,70 @@
+# Runs on every pull request, on every push to main, and on demand.
+# Required checks (see docs/maintainer-agent-workflow.md, "Repository
+# configuration"): the three "Backend tests" jobs and "Frontend build".
+# "Frontend lint" is informational until its existing errors are fixed.
+#
+# Actions are pinned to full commit SHAs; the comment next to each one is the
+# version it corresponds to. Only GitHub-owned actions are used.
+
+name: Tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Backend tests (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - name: Install
+        run: pip install -r backend/requirements.txt pytest
+      - name: Run unit tests
+        run: python -m pytest backend/tests
+
+  frontend:
+    name: Frontend build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install
+        run: npm ci
+      - name: Type-check and build
+        run: npm run build
+
+  frontend-lint:
+    name: Frontend lint (informational)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install
+        run: npm ci
+      - name: Lint
+        run: npm run lint

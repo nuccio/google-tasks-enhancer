@@ -77,27 +77,26 @@ SECRET_KEY=UNA_LUNGA_E_CASUALE_STRINGA_SECRETA_PER_LE_SESSIONI_FASTAPI
 
 > **Sicurezza:** `backend/.env` e qualsiasi file `client_secret*.json` / `credentials.json` sono esclusi da git tramite `.gitignore`. Non committare mai credenziali reali.
 
-### 4. Installazione delle Dipendenze Python
+### 4. Installazione delle Dipendenze
 
-Assicurati di essere nella directory radice del progetto e di avere `pip` installato.
+Serve Python 3.11 o superiore. Dalla radice del repository:
 
 ```bash
-cd /path/to/your/project/directory # Es: /Users/nuccio/Dev/gemini-cli
-python3 -m pip install -r task-enhancer-backend/requirements.txt
+python3 -m pip install -r backend/requirements.txt
+```
+
+Per il frontend (Node.js) serve solo se vuoi modificarlo o ricompilarlo:
+
+```bash
+cd frontend && npm ci && npm run build
 ```
 
 ### 5. Avvio del Server
 
-Naviga nella directory radice del progetto e avvia il server.
+Dalla radice del repository (le variabili vengono lette da `backend/.env`):
 
 ```bash
-cd /path/to/your/project/directory # Es: /Users/nuccio/Dev/gemini-cli
-
-# Imposta le variabili d'Ambiente (per questa sessione del terminale)
-export $(cat task-enhancer-backend/.env | xargs)
-
-# Avvia il server FastAPI (in foreground, per vedere i log)
-python3 -m uvicorn task-enhancer-backend.main:app --host 0.0.0.0 --port 8000 --log-level debug
+python3 -m uvicorn backend.main:app --host 0.0.0.0 --port 8000 --log-level debug
 ```
 Per fermare il server, premi `Ctrl+C`.
 
