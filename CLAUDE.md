@@ -38,7 +38,7 @@ After changing the model in `backend/models.py`, add an Alembic migration in `ba
 - **Never commit or print secrets**: `backend/.env`, `client_secret*.json`, `credentials.json`, `token.json`, and any `*.db` file (`backend/app.db` holds the users' Google tokens in clear text). Only `backend/env.example` is tracked, with placeholders. Don't read real credential or database files.
 - Never log tokens, task titles or notes.
 - Google OAuth scopes stay as narrow as the features need. Widening them needs an issue agreed with the maintainer. See `SECURITY.md`.
-- `backend/tests/test_repository_language.py` fails when a tracked file other than `frontend/src/i18n/it.ts` contains Italian. Fix the text; an exception is one line with a reason in that test.
+- `backend/tests/test_repository_language.py` fails when a tracked file contains Italian, outside its exceptions (`frontend/src/i18n/it.ts`, the test itself and `frontend/package-lock.json`). Fix the text; an exception is one line with a reason in that test.
 - Add tests with every change; the backend unit tests must pass on Python 3.11-3.13.
 - Update `README.md` when behaviour or configuration changes.
 

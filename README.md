@@ -94,9 +94,11 @@ Node.js is needed for the frontend only if you want to change or rebuild it:
 cd frontend && npm ci && npm run build
 ```
 
-### 5. Update the database
+### 5. Update an existing database
 
-The app creates the tables it needs when it starts, but it does not run Alembic. Migrations change an existing database, so run them after you pull a new version of the code. The commands below use the database that `backend/alembic/env.py` points at, which is `backend/app.db`, the file that holds the users' Google tokens in clear text. Never commit it.
+**Skip this step on a fresh clone.** There is no `backend/app.db` yet: the app creates the tables when it starts for the first time (step 6). Running the commands below without a database creates an empty file, and `alembic upgrade head` then fails with `no such table: tasks`.
+
+This step is only for a database that already exists, for example one created by an earlier version of the app. The app creates its tables at start-up but does not run Alembic, so run the migrations after you pull a new version of the code. The commands below use the database that `backend/alembic/env.py` points at, which is `backend/app.db`, the file that holds the users' Google tokens in clear text. Never commit it.
 
 1.  Check which revision the database is at. This reads only the version table, not your data:
 
@@ -110,7 +112,7 @@ The app creates the tables it needs when it starts, but it does not run Alembic.
     python3 -m alembic stamp fb815bf08509
     ```
 
-3.  Back up the database first: copy `backend/app.db` to a file whose name ends in `.db`, for example `backend/app-backup.db`, so that git ignores the copy. Then apply the migrations:
+3.  Back up the database first: copy `app.db` to a file whose name ends in `.db`, for example `app-backup.db`, so that git ignores the copy. From the `backend/` directory (where the commands above leave you): `cp app.db app-backup.db`. To restore, copy it back the same way. Then apply the migrations:
 
     ```bash
     python3 -m alembic upgrade head
@@ -219,7 +221,7 @@ uvicorn's access log records every request URL, so the filter and search values 
 
 ### API endpoints
 
-*   **`GET /`**: Serves the frontend application (any path that no other endpoint handles gets the same page).
+*   **`GET /`**: Serves the frontend application (any path that no other endpoint handles gets the same page, except unknown `/dev/api/*` paths, which answer `404`).
 *   **`GET /auth/login/google`**: Starts the Google OAuth 2.0 sign-in flow.
 *   **`GET /auth/google`**: Callback URL for the Google sign-in.
 *   **`GET /auth/me`**: Returns the email of the signed-in user (requires authentication).
@@ -228,7 +230,7 @@ uvicorn's access log records every request URL, so the filter and search values 
 *   **`PATCH /tasks/{id}`**: Updates the fields of a task. `priority` accepts `low`, `medium`, `high` or `null`; any other value is rejected with a `422` error. A change of `status` is also sent to Google Tasks.
 *   **`GET /dev`** and **`GET /dev/api/*`**: local read-only data viewer, off by default and for development only (see [Local data viewer](#local-data-viewer-development-only)).
 
-You can explore and try the endpoints in the interactive FastAPI documentation at `http://localhost:8000/docs` (after starting the server and signing in with the browser). The endpoints are grouped under the tags `Authentication`, `Tasks` and `General`.
+You can explore and try the endpoints in the interactive FastAPI documentation at `http://localhost:8000/docs` (after starting the server and signing in with the browser). The endpoints are grouped under the tags `Authentication`, `Tasks`, `General` and `Dev UI`.
 
 ## Contributing
 

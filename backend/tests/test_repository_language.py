@@ -80,6 +80,8 @@ ITALIAN_WORDS = [
     "funzione",
     "valore",
     "messaggio",
+    "contiene",
+    "ecc",
 ]
 
 ACCENT_RE = re.compile(f"[{ACCENTED_VOWELS}]")

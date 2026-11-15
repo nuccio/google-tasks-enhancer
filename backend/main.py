@@ -147,7 +147,7 @@ async def update_task(
     update_data = task_update.model_dump(exclude_unset=True) if hasattr(task_update, 'model_dump') else task_update.dict(exclude_unset=True)
 
     if google_data:
-        # google_data contiene 'status', 'completed', 'updated', 'etag', ecc.
+        # google_data contains 'status', 'completed', 'updated', 'etag', etc.
         update_data.update(google_data)
 
     updated_task = crud.create_or_update_task(db, {"id": task_id, **update_data}, user.id)
