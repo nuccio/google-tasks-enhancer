@@ -6,13 +6,17 @@ import { fetchTasks, fetchUser, syncTasks } from './api';
 import Header from './Header';
 import TaskTable from './TaskTable';
 import LoginView from './LoginView';
+import { useI18n } from './i18n/useI18n';
 import './App.css'; // Import main app styles
 
 function App() {
+    const { t } = useI18n();
     const [user, setUser] = useState<User | null>(null);
     const [tasks, setTasks] = useState<Task[]>([]);
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
+    // Which request failed. The sentence shown comes from the dictionary, so it
+    // follows the language; the technical detail goes to the browser console.
+    const [error, setError] = useState<'loadTasks' | 'syncTasks' | null>(null);
     const [isSyncing, setIsSyncing] = useState(false);
 
     const sortTasks = useCallback((tasksToSort: Task[]): Task[] => {
@@ -51,7 +55,8 @@ function App() {
                 }
             })
             .catch((err: unknown) => {
-                setError((err as Error).message);
+                console.error('Could not load tasks', err);
+                setError('loadTasks');
             })
             .finally(() => {
                 setLoading(false);
@@ -67,7 +72,8 @@ function App() {
             const fetchedTasks = await fetchTasks();
             setTasks(sortTasks(fetchedTasks));
         } catch (err) {
-            setError((err as Error).message);
+            console.error('Could not sync tasks', err);
+            setError('syncTasks');
         } finally {
             setIsSyncing(false);
         }
@@ -80,11 +86,11 @@ function App() {
     }, [sortTasks]);
 
     if (loading) {
-        return <div className="loading">Loading...</div>;
+        return <div className="loading">{t.app.loading}</div>;
     }
 
     if (error) {
-        return <div className="error">Error: {error}</div>;
+        return <div className="error">{t.errors[error]}</div>;
     }
 
     return (
