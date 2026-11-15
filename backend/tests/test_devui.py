@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import text
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from backend import devui, main, models
 from backend.database import get_db
@@ -198,6 +199,43 @@ def test_non_loopback_client_answers_403(make_client, enabled, address):
 @pytest.mark.parametrize("address", ["127.0.0.1", "127.8.9.10", "::1", "::ffff:127.0.0.1"])
 def test_loopback_clients_are_accepted(make_client, enabled, address):
     assert make_client(client=(address, 50000)).get("/dev/api/status").status_code == 200
+
+
+def test_forwarded_for_is_ignored_without_proxy_headers_handling(make_client, enabled):
+    """The guard reads the client address of the ASGI scope, not the header itself."""
+    client = make_client()
+    response = client.get("/dev/api/status", headers={"x-forwarded-for": "203.0.113.5"})
+    assert response.status_code == 200
+    client = make_client(client=("203.0.113.5", 50000))
+    response = client.get("/dev/api/status", headers={"x-forwarded-for": "127.0.0.1"})
+    assert response.status_code == 403
+
+
+def uvicorn_client(client=LOOPBACK_CLIENT):
+    """The app behind uvicorn's default proxy-headers handling (trusts 127.0.0.1)."""
+    proxied = ProxyHeadersMiddleware(app, trusted_hosts="127.0.0.1")
+    return TestClient(proxied, base_url=LOCAL_BASE_URL, client=client)
+
+
+@pytest.mark.parametrize(
+    "forwarded", ["203.0.113.5", "192.168.1.10", "2001:db8::1", "127.0.0.1, 203.0.113.5"]
+)
+def test_forwarded_non_loopback_client_answers_403(make_client, enabled, forwarded):
+    client = uvicorn_client()
+    for path in GUARDED_PATHS:
+        response = client.get(path, headers={"x-forwarded-for": forwarded})
+        assert response.status_code == 403, path
+
+
+def test_forwarded_loopback_client_is_accepted(make_client, enabled):
+    response = uvicorn_client().get("/dev/api/status", headers={"x-forwarded-for": "127.0.0.1"})
+    assert response.status_code == 200
+
+
+def test_forwarded_for_from_untrusted_peer_is_not_used(make_client, enabled):
+    client = uvicorn_client(client=("203.0.113.5", 50000))
+    response = client.get("/dev/api/status", headers={"x-forwarded-for": "127.0.0.1"})
+    assert response.status_code == 403
 
 
 def test_non_loopback_client_answers_403_before_validation(make_client, enabled):
@@ -453,6 +491,10 @@ def test_tasks_pagination(dev_client, seeded):
         {"limit": 501},
         {"offset": -1},
         {"user_id": "abc"},
+        {"user_id": 2**63},
+        {"user_id": 10**40},
+        {"offset": 2**63},
+        {"offset": 10**40},
     ],
 )
 def test_tasks_invalid_parameters_answer_422(dev_client, seeded, params):
@@ -463,6 +505,14 @@ def test_tasks_limit_bounds(dev_client, seeded):
     assert len(dev_client.get("/dev/api/tasks", params={"limit": 1}).json()["items"]) == 1
     response = dev_client.get("/dev/api/tasks", params={"limit": 500, "include_deleted": "true"})
     assert len(response.json()["items"]) == TASK_COUNT
+
+
+def test_tasks_largest_sqlite_integer_is_accepted(dev_client, seeded):
+    largest = 2**63 - 1
+    for params in ({"user_id": largest}, {"offset": largest}):
+        response = dev_client.get("/dev/api/tasks", params=params)
+        assert response.status_code == 200, params
+        assert response.json()["items"] == []
 
 
 def test_task_summary_fields(dev_client, seeded):

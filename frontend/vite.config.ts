@@ -19,9 +19,13 @@ export default defineConfig({
     proxy: {
       // The dev API accepts only a local Host header, so the proxy must not
       // rewrite it (changeOrigin stays false: Host remains localhost:<vite port>).
+      // xfwd adds X-Forwarded-For with the address of the client that reached
+      // Vite; uvicorn trusts it from 127.0.0.1 by default, so the loopback check
+      // sees that client rather than the proxy itself.
       '/dev/api': {
         target: 'http://localhost:8000',
         changeOrigin: false,
+        xfwd: true,
       },
     },
   },

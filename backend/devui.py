@@ -23,6 +23,8 @@ from . import database, models, scheduler
 DEV_UI_FLAG = "DEV_UI_ENABLED"
 _TRUE_VALUES = {"true", "1", "yes"}
 _LOCAL_HOSTS = {"localhost", "127.0.0.1", "[::1]"}
+# Largest SQLite integer: bigger query values answer 422 instead of failing in the driver.
+SQLITE_INT_MAX = 2**63 - 1
 
 
 def dev_ui_enabled() -> bool:
@@ -287,7 +289,7 @@ def get_users(db: Session = Depends(database.get_db)):
 @router.get("/tasks", response_model=TaskPage)
 def get_tasks(
     db: Session = Depends(database.get_db),
-    user_id: Optional[int] = None,
+    user_id: Optional[int] = Query(None, le=SQLITE_INT_MAX),
     status: Optional[str] = None,
     priority: Optional[str] = None,
     project: Optional[str] = None,
@@ -297,7 +299,7 @@ def get_tasks(
     sort: SortColumn = "updated",
     order: Literal["asc", "desc"] = "desc",
     limit: int = Query(50, ge=1, le=500),
-    offset: int = Query(0, ge=0),
+    offset: int = Query(0, ge=0, le=SQLITE_INT_MAX),
 ):
     conditions = []
     if user_id is not None:
