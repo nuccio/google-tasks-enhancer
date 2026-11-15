@@ -13,6 +13,7 @@ Short words that are also English or code are deliberately not in the list
 import re
 import shutil
 import subprocess
+import unicodedata
 from pathlib import Path
 
 import pytest
@@ -28,10 +29,10 @@ EXCEPTIONS = {
 }
 
 # Files that are still Italian and wait for their translation.
-# The docs step of #56 empties this list; the final PR must have it empty.
-NOT_TRANSLATED_YET = {
+# The docs step of #56 empties this set; the final PR must have it empty.
+NOT_TRANSLATED_YET = frozenset({
     "README.md",
-}
+})
 
 # Files that are not text worth checking.
 SKIPPED_FILES = {
@@ -67,6 +68,19 @@ ITALIAN_WORDS = [
     "configurazione",
     "tutti",
     "tutte",
+    "dei",
+    "nel",
+    "dati",
+    "il",
+    "gli",
+    "sono",
+    "nostro",
+    "tuoi",
+    "recupera",
+    "errore",
+    "funzione",
+    "valore",
+    "messaggio",
 ]
 
 ACCENT_RE = re.compile(f"[{ACCENTED_VOWELS}]")
@@ -78,6 +92,7 @@ WORD_RE = re.compile(
 
 def find_italian(text: str) -> list[tuple[int, str]]:
     """Return (line number, matched word or character) for every signal."""
+    text = unicodedata.normalize("NFC", text)
     found = []
     for number, line in enumerate(text.splitlines(), start=1):
         for match in ACCENT_RE.finditer(line):
@@ -118,7 +133,7 @@ def tracked_files() -> list[str]:
 
 
 def test_tracked_files_have_no_italian():
-    skipped = EXCEPTIONS | NOT_TRANSLATED_YET | SKIPPED_FILES
+    skipped = set(EXCEPTIONS) | set(NOT_TRANSLATED_YET) | set(SKIPPED_FILES)
     problems = []
     for name in tracked_files():
         if name in skipped:
@@ -141,8 +156,28 @@ def test_finds_an_italian_sentence():
 
 
 def test_finds_an_accented_vowel():
-    assert find_italian("perché no") == []  # combining accent is not a signal
     assert find_italian("città") == [(1, "à")]
+
+
+def test_finds_a_decomposed_accent():
+    # "a" followed by a combining grave accent, normalised to "à" before matching
+    assert find_italian("citta\u0300") == [(1, "à")]
+
+
+def test_finds_an_upper_case_accented_vowel():
+    assert find_italian("CITTÀ") == [(1, "À")]
+
+
+def test_binary_file_is_skipped(tmp_path):
+    with_nul = tmp_path / "a.bin"
+    with_nul.write_bytes(b"citt\xc3\xa0\x00")
+    not_utf8 = tmp_path / "b.bin"
+    not_utf8.write_bytes(b"\xff\xfe questo")
+    text_file = tmp_path / "c.txt"
+    text_file.write_text("questo", encoding="utf-8")
+    assert read_text(with_nul) is None
+    assert read_text(not_utf8) is None
+    assert read_text(text_file) == "questo"
 
 
 @pytest.mark.parametrize(
