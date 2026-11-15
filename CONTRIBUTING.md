@@ -30,7 +30,7 @@ For the frontend, run `npm ci` in `frontend/`. The credentials needed to run the
 ## Making a change
 
 1. Create a branch from `main`, one per issue, e.g. `fix/sync-keeps-custom-fields` or `issue-14-pagination`.
-2. Add or update tests with the change. The backend unit tests must pass on Python 3.11-3.13, and `npm run build` must pass in `frontend/`.
+2. Add or update tests with the change. The backend unit tests must pass on Python 3.11-3.13, and `npm run build` and `npm run lint` must pass in `frontend/`.
 3. Update the docs (`README.md`) when behaviour or configuration changes.
 4. If you change the database model, add an Alembic migration. If you change dependencies, update the lock file (`frontend/package-lock.json`).
 5. Open a pull request against `main`. Put `Fixes #N` in the description, so the issue is closed when the pull request is merged.
@@ -55,8 +55,8 @@ The Claude sessions of the maintainer follow [docs/maintainer-agent-workflow.md]
 
 A pull request can be merged when:
 
-- the **Tests** workflow passes (`Backend tests` on Python 3.11, 3.12 and 3.13, and `Frontend build` are required checks);
-- it has one approving review;
+- the **Tests** workflow passes (`Backend tests` on Python 3.11, 3.12 and 3.13, `Frontend build` and `Frontend lint` are required checks);
+- it has one approving review from the maintainer, who is the code owner of every path (`.github/CODEOWNERS`);
 - the branch is up to date with `main`.
 
 The author of a pull request updates its branch. Reviewers do not push to it or use **Update branch** (`gh pr update-branch`): `main` requires approval of the last push, so an approver who updates the branch loses their own approval.
