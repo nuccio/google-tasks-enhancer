@@ -1,0 +1,3 @@
+# Code owners: the repository owner is requested as reviewer on every path,
+# so that code owner review in the ruleset requires the owner's approval.
+* @nuccio

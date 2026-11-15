@@ -1,6 +1,6 @@
 // frontend/src/TaskRow.tsx
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import type { Task } from './api';
 import { updateTask } from './api';
 
@@ -14,13 +14,19 @@ const PRIORITY_OPTIONS = ['none', 'low', 'medium', 'high'];
 const TaskRow: React.FC<TaskRowProps> = ({ task, onTaskUpdate }) => {
     const [localTask, setLocalTask] = useState<Task>(task);
     const [isUpdating, setIsUpdating] = useState(false);
+    const [prevTask, setPrevTask] = useState<Task>(task);
 
-    useEffect(() => {
+    // Reset the local copy when the parent passes a new task object, during
+    // render instead of in an effect:
+    // https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes
+    if (task !== prevTask) {
+        setPrevTask(task);
         setLocalTask(task);
-    }, [task]);
+    }
 
-    const handleFieldChange = async (field: keyof Task, value: any) => {
-        const updatedFields = { [field]: value };
+    const handleFieldChange = async <K extends keyof Task>(field: K, value: Task[K]) => {
+        const updatedFields: Partial<Task> = {};
+        updatedFields[field] = value;
         setLocalTask(prev => ({ ...prev, ...updatedFields }));
         setIsUpdating(true);
         try {
@@ -68,7 +74,7 @@ const TaskRow: React.FC<TaskRowProps> = ({ task, onTaskUpdate }) => {
                 return date.toLocaleDateString();
             }
             return dateString; // Return original if still invalid
-        } catch (e) {
+        } catch {
             return dateString; // Return original if any error occurs
         }
     };
