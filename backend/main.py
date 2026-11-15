@@ -3,7 +3,7 @@ from fastapi.responses import RedirectResponse, HTMLResponse, PlainTextResponse
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.requests import Request
 from sqlalchemy.orm import Session
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from typing import Optional
 import os
 from fastapi.staticfiles import StaticFiles
@@ -16,11 +16,19 @@ class TaskUpdate(BaseModel):
     project_name: Optional[str] = None
     estimated_time_minutes: Optional[int] = None
 
+    @field_validator("priority")
+    @classmethod
+    def validate_priority(cls, value: Optional[str]) -> Optional[str]:
+        if value is not None and value not in models.PRIORITY_VALUES:
+            allowed = ", ".join(models.PRIORITY_VALUES)
+            raise ValueError(f"priority must be one of: {allowed}, or null")
+        return value
+
     model_config = {
         "json_schema_extra": {
             "example": {
                 "status": "completed",
-                "priority": "alta"
+                "priority": "high"
             }
         }
     }

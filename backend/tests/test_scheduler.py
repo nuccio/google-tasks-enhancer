@@ -44,6 +44,7 @@ def test_sync_tasks_for_user(mock_session_local, mock_get_service, db):
     assert len(tasks) == 1
     assert tasks[0].id == "gtask1"
     assert tasks[0].hashtags == ["work"]
+    assert tasks[0].priority == models.DEFAULT_PRIORITY
 
 @patch("backend.scheduler.get_google_tasks_service")
 @patch("backend.scheduler.SessionLocal")

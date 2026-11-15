@@ -77,7 +77,7 @@ def sync_tasks_for_user(user_id: int):
                 task_data['hashtags'] = extract_hashtags(task_data.get('title', ''))
 
                 # Aggiungi default per i campi personalizzati se non presenti
-                if 'priority' not in task_data: task_data['priority'] = "media"
+                if 'priority' not in task_data: task_data['priority'] = models.DEFAULT_PRIORITY
                 if 'project_name' not in task_data: task_data['project_name'] = None
                 if 'estimated_time_minutes' not in task_data: task_data['estimated_time_minutes'] = None
 
