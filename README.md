@@ -35,6 +35,7 @@ Componenti principali:
 *   `models.py`: Definizione dei modelli di database per `User` e `Task`.
 *   `crud.py`: Operazioni CRUD (Create, Read, Update, Delete) per i dati del database.
 *   `scheduler.py`: Logica per la sincronizzazione dei task in background con Google Tasks.
+*   `devui.py`: read-only dev API under `/dev/api` for the local data viewer, off by default (see [Local data viewer](#local-data-viewer-development-only)).
 
 ## Setup e Installazione
 
@@ -126,7 +127,7 @@ A read-only page that shows what the local database holds: overview counts, the 
 
 ### Enable and open it
 
-1. Set the flag in `backend/.env` (it is `false` in `backend/env.example`; `true`, `1` and `yes` turn it on). The flag is read at every request.
+1. Set the flag in `backend/.env` (it is `false` in `backend/env.example`; `true`, `1` and `yes` turn it on). Restart the API after changing it: `backend/.env` is read once at startup.
 
    ```dotenv
    DEV_UI_ENABLED=true
@@ -184,6 +185,7 @@ uvicorn's access log records every request URL, so the filter and search values 
 *   **`GET /auth/google`**: Callback URL per l'autenticazione Google.
 *   **`GET /tasks/`**: Recupera tutti i task sincronizzati per l'utente autenticato.
 *   **`POST /tasks/sync`**: Forza una sincronizzazione manuale dei task per l'utente autenticato.
+*   **`GET /dev`** and **`GET /dev/api/*`**: local read-only data viewer, off by default and for development only (see [Local data viewer](#local-data-viewer-development-only)).
 
 Puoi esplorare e testare gli endpoint tramite la documentazione interattiva di FastAPI all'indirizzo `http://localhost:8000/docs` (dopo aver avviato il server e autenticato via browser).
 
