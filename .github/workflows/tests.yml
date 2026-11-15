@@ -1,7 +1,8 @@
 # Runs on every pull request, on every push to main, and on demand.
 # Required checks (see docs/maintainer-agent-workflow.md, "Repository
 # configuration"): the three "Backend tests" jobs and "Frontend build".
-# "Frontend lint" is informational until its existing errors are fixed.
+# "Frontend lint" is a normal check that must pass; the owner adds it to the
+# required checks of the rulesets.
 #
 # Actions are pinned to full commit SHAs; the comment next to each one is the
 # version it corresponds to. Only GitHub-owned actions are used.
@@ -55,7 +56,7 @@ jobs:
         run: npm run build
 
   frontend-lint:
-    name: Frontend lint (informational)
+    name: Frontend lint
     runs-on: ubuntu-latest
     defaults:
       run:
