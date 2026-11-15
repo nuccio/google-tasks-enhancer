@@ -9,7 +9,12 @@ npm ci          # install the exact dependencies from package-lock.json
 npm run dev     # Vite dev server with hot reload
 npm run build   # type-check with TypeScript 7 (tsc -b), then build into dist/
 npm run lint    # lint with Oxlint
+npm test        # unit tests with Vitest
 ```
+
+## UI text
+
+The UI texts live in typed dictionaries in `src/i18n/` (`en.ts` and `it.ts`, plus the provider and the helpers). English is the default; a text missing from one dictionary fails `npm run build`. See the UI languages section of the root `README.md`.
 
 ## Type-checking and linting
 

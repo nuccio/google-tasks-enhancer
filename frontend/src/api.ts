@@ -1,10 +1,13 @@
 // frontend/src/api.ts
 
+// Stored priority values. An unset priority is null.
+export type Priority = 'low' | 'medium' | 'high';
+
 export interface Task {
     id: string;
     title: string;
     status: string;
-    priority: string | null;
+    priority: Priority | null;
     project_name: string | null;
     hashtags: string | null;
     estimated_time_minutes: number | null;

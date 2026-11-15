@@ -6,7 +6,7 @@ from backend.database import Base, get_db
 from backend.main import app
 from unittest.mock import patch
 
-# Database di test SQLite in memoria
+# SQLite test database (the file ./test.db, not an in-memory one)
 SQLALCHEMY_DATABASE_URL = "sqlite:///./test.db"
 
 engine = create_engine(
@@ -22,14 +22,14 @@ def mock_startup():
 
 @pytest.fixture(scope="function")
 def db():
-    # Crea le tabelle
+    # Create the tables
     Base.metadata.create_all(bind=engine)
     db = TestingSessionLocal()
     try:
         yield db
     finally:
         db.close()
-        # Rimuovi le tabelle dopo ogni test
+        # Drop the tables after each test
         Base.metadata.drop_all(bind=engine)
 
 @pytest.fixture(scope="function")

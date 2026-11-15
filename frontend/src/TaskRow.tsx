@@ -1,17 +1,21 @@
 // frontend/src/TaskRow.tsx
 
 import React, { useState } from 'react';
-import type { Task } from './api';
+import type { Priority, Task } from './api';
 import { updateTask } from './api';
+import { useI18n } from './i18n/useI18n';
 
 interface TaskRowProps {
     task: Task;
     onTaskUpdate: (updatedTask: Task) => void;
 }
 
-const PRIORITY_OPTIONS = ['none', 'low', 'medium', 'high'];
+// The select value of an unset priority.
+const NO_PRIORITY = '';
+const PRIORITY_OPTIONS: Priority[] = ['low', 'medium', 'high'];
 
 const TaskRow: React.FC<TaskRowProps> = ({ task, onTaskUpdate }) => {
+    const { t, formatDate } = useI18n();
     const [localTask, setLocalTask] = useState<Task>(task);
     const [isUpdating, setIsUpdating] = useState(false);
     const [prevTask, setPrevTask] = useState<Task>(task);
@@ -47,7 +51,7 @@ const TaskRow: React.FC<TaskRowProps> = ({ task, onTaskUpdate }) => {
     };
 
     const handlePriorityChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-        const newPriority = e.target.value === "none" ? null : e.target.value;
+        const newPriority = PRIORITY_OPTIONS.find(option => option === e.target.value) ?? null;
         handleFieldChange("priority", newPriority);
     };
 
@@ -60,23 +64,10 @@ const TaskRow: React.FC<TaskRowProps> = ({ task, onTaskUpdate }) => {
         handleFieldChange("estimated_time_minutes", isNaN(value) ? null : value);
     };
 
+    // A due date is a calendar date: read in UTC, shown in the active language.
     const formatDueDate = (dateString: string | null) => {
-        if (!dateString) return "-";
-        try {
-            // Attempt to parse ISO format first (e.g., from Google Tasks API)
-            let date = new Date(dateString);
-            // If parsing as ISO fails or results in an invalid date, try DD/MM/YYYY
-            if (isNaN(date.getTime()) && dateString.match(/^\d{2}\/\d{2}\/\d{4}$/)) {
-                const [day, month, year] = dateString.split('/').map(Number);
-                date = new Date(year, month - 1, day);
-            }
-            if (!isNaN(date.getTime())) {
-                return date.toLocaleDateString();
-            }
-            return dateString; // Return original if still invalid
-        } catch {
-            return dateString; // Return original if any error occurs
-        }
+        if (!dateString) return t.table.emptyValue;
+        return formatDate(dateString) ?? dateString; // Show the original if it is not a date
     };
 
     return (
@@ -92,13 +83,14 @@ const TaskRow: React.FC<TaskRowProps> = ({ task, onTaskUpdate }) => {
             <td>{localTask.title}</td>
             <td>
                 <select
-                    value={localTask.priority || "none"}
+                    value={localTask.priority ?? NO_PRIORITY}
                     onChange={handlePriorityChange}
                     disabled={isUpdating}
                 >
+                    <option value={NO_PRIORITY}>{t.priority.none}</option>
                     {PRIORITY_OPTIONS.map(option => (
                         <option key={option} value={option}>
-                            {option.charAt(0).toUpperCase() + option.slice(1)}
+                            {t.priority[option]}
                         </option>
                     ))}
                 </select>
@@ -123,14 +115,14 @@ const TaskRow: React.FC<TaskRowProps> = ({ task, onTaskUpdate }) => {
                 />
             </td>
             <td>{formatDueDate(localTask.due_date)}</td>
-            <td>{localTask.notes || "-"}</td>
+            <td>{localTask.notes || t.table.emptyValue}</td>
             <td>
                 {
                     localTask.links && localTask.links.map((linkObj, index) => {
                         if (linkObj.type === "email") {
-                            return <a key={index} href={linkObj.link} target="_blank" rel="noopener noreferrer">Mail</a>;
+                            return <a key={index} href={linkObj.link} target="_blank" rel="noopener noreferrer">{t.table.links.email}</a>;
                         } else if (linkObj.type === "chat") {
-                            return <a key={index} href={linkObj.link} target="_blank" rel="noopener noreferrer">Chat</a>;
+                            return <a key={index} href={linkObj.link} target="_blank" rel="noopener noreferrer">{t.table.links.chat}</a>;
                         }
                         return null;
                     })

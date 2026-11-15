@@ -3,7 +3,7 @@ from fastapi.responses import RedirectResponse, HTMLResponse, PlainTextResponse
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.requests import Request
 from sqlalchemy.orm import Session
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from typing import Optional
 import os
 from fastapi.staticfiles import StaticFiles
@@ -16,16 +16,24 @@ class TaskUpdate(BaseModel):
     project_name: Optional[str] = None
     estimated_time_minutes: Optional[int] = None
 
+    @field_validator("priority")
+    @classmethod
+    def validate_priority(cls, value: Optional[str]) -> Optional[str]:
+        if value is not None and value not in models.PRIORITY_VALUES:
+            allowed = ", ".join(models.PRIORITY_VALUES)
+            raise ValueError(f"priority must be one of: {allowed}, or null")
+        return value
+
     model_config = {
         "json_schema_extra": {
             "example": {
                 "status": "completed",
-                "priority": "alta"
+                "priority": "high"
             }
         }
     }
 
-# Creazione del database all'avvio
+# Create the database tables at startup
 print("DEBUG: Attempting to create database tables...")
 models.Base.metadata.create_all(bind=database.engine)
 print("DEBUG: Database tables creation attempted.")
@@ -33,9 +41,9 @@ print("DEBUG: Database tables creation attempted.")
 app = FastAPI(
     title="Google Tasks Enhancer API",
     description="""
-API per estendere le funzionalità di Google Tasks.
-Permette la sincronizzazione automatica, l'estrazione di hashtag dai titoli, 
-e la gestione di campi personalizzati come priorità e progetti.
+API that extends Google Tasks.
+It syncs tasks automatically, extracts hashtags from titles,
+and manages custom fields such as priority and project.
 """,
     version="0.1.0",
     contact={
@@ -43,11 +51,11 @@ e la gestione di campi personalizzati come priorità e progetti.
     },
 )
 
-# Aggiungi il middleware per le sessioni (necessario per OAuth)
+# Session middleware (required by OAuth)
 app.add_middleware(SessionMiddleware, secret_key=os.getenv("SECRET_KEY"))
 
-# Includi il router di autenticazione
-app.include_router(auth.router, prefix="/auth", tags=["Autenticazione"])
+# Authentication router
+app.include_router(auth.router, prefix="/auth", tags=["Authentication"])
 
 # Read-only dev UI API: always registered, answers 404 unless DEV_UI_ENABLED is on
 app.include_router(devui.router)
@@ -55,14 +63,14 @@ app.include_router(devui.router)
 @app.on_event("startup")
 def startup_event():
     scheduler.start_scheduler()
-    scheduler.sync_all_existing_users_on_startup() # Sincronizza tutti gli utenti esistenti all'avvio
+    scheduler.sync_all_existing_users_on_startup() # Sync all existing users at startup
     print("Scheduler started and initial sync initiated for existing users.")
 
 @app.get("/tasks/", tags=["Tasks"])
 async def get_all_tasks(request: Request, db: Session = Depends(database.get_db)):
     """
-    Recupera tutti i task dell'utente loggato dal database locale.
-    Include i campi extra come priority, hashtags e project_name.
+    Returns all tasks of the logged-in user from the local database.
+    Includes the custom fields such as priority, hashtags and project_name.
     """
     if "user" not in request.session:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
@@ -75,11 +83,11 @@ async def get_all_tasks(request: Request, db: Session = Depends(database.get_db)
     tasks = crud.get_tasks(db, user_id=user.id)
     return tasks
 
-@app.post("/tasks/sync", tags=["Tasks"], summary="Forza sincronizzazione")
+@app.post("/tasks/sync", tags=["Tasks"], summary="Force a sync")
 async def force_sync(request: Request, db: Session = Depends(database.get_db)):
     """
-    Avvia immediatamente un ciclo di sincronizzazione con Google Tasks per l'utente loggato.
-    Utile se non si vuole aspettare il ciclo automatico dello scheduler.
+    Immediately starts a sync with Google Tasks for the logged-in user.
+    Useful to avoid waiting for the next automatic run of the scheduler.
     """
     if "user" not in request.session:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
@@ -95,7 +103,7 @@ async def force_sync(request: Request, db: Session = Depends(database.get_db)):
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
-@app.patch("/tasks/{task_id}", tags=["Tasks"], summary="Aggiorna un task")
+@app.patch("/tasks/{task_id}", tags=["Tasks"], summary="Update a task")
 async def update_task(
     task_id: str, 
     task_update: TaskUpdate, 
@@ -103,8 +111,8 @@ async def update_task(
     db: Session = Depends(database.get_db)
 ):
     """
-    Aggiorna i campi di un task. Se viene modificato lo 'status', la modifica 
-    viene inviata anche alle API di Google Tasks.
+    Updates the fields of a task. If 'status' changes, the change is also
+    sent to the Google Tasks API.
     """
     if "user" not in request.session:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
@@ -118,7 +126,7 @@ async def update_task(
     if not db_task:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
 
-    # Se lo status è cambiato, aggiorna su Google
+    # If the status changed, update it on Google
     google_data = {}
     if task_update.status and task_update.status != db_task.status:
         if not db_task.tasklist_id:
@@ -127,19 +135,19 @@ async def update_task(
                 detail="Tasklist ID missing for this task. Try to sync first."
             )
         try:
-            # Riceviamo i dati aggiornati da Google (inclusi i timestamp)
+            # Google returns the updated task, including its timestamps
             google_data = scheduler.update_task_status_on_google(
                 db, user.id, task_id, db_task.tasklist_id, task_update.status
             )
         except ValueError as e:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
-    # Aggiorna localmente: uniamo i dati dell'utente con quelli di Google
-    # exclude_unset=True assicura che vengano considerati SOLO i campi inviati nel JSON
+    # Update locally: merge the user's changes with the data returned by Google.
+    # exclude_unset=True keeps ONLY the fields sent in the JSON body
     update_data = task_update.model_dump(exclude_unset=True) if hasattr(task_update, 'model_dump') else task_update.dict(exclude_unset=True)
 
     if google_data:
-        # google_data contiene 'status', 'completed', 'updated', 'etag', ecc.
+        # google_data contains 'status', 'completed', 'updated', 'etag', etc.
         update_data.update(google_data)
 
     updated_task = crud.create_or_update_task(db, {"id": task_id, **update_data}, user.id)
@@ -147,7 +155,7 @@ async def update_task(
 
     return updated_task
 
-@app.get("/auth/me", tags=["Autenticazione"], summary="Get current user info")
+@app.get("/auth/me", tags=["Authentication"], summary="Get current user info")
 async def get_current_user(request: Request):
     """
     Returns the email of the currently authenticated user.
@@ -178,7 +186,7 @@ async def serve_dev_ui():
     with open(dev_file_path, "r") as f:
         return HTMLResponse(content=f.read())
 
-@app.get("/{full_path:path}", tags=["Generale"])
+@app.get("/{full_path:path}", tags=["General"])
 async def serve_frontend(request: Request, full_path: str):
     """
     Serve the frontend application.
@@ -193,9 +201,9 @@ async def serve_frontend(request: Request, full_path: str):
     else:
         return {"message": "Frontend not built yet or index.html not found."}
 
-# TODO: Aggiungere logica per aggiungere l'utente allo scheduler dopo il primo login
-# Questo richiederà di modificare auth.py per chiamare scheduler.add_user_to_sync
-# dopo aver creato o aggiornato l'utente.
+# TODO: Add the user to the scheduler after the first login.
+# This needs auth.py to call scheduler.add_user_to_sync
+# after creating or updating the user.
 
-# TODO: Aggiungere endpoint per la gestione CRUD dei task personalizzati tramite API
-# (es. aggiornare priorità, project_name, estimated_time_minutes)
+# TODO: Add endpoints to manage the custom task fields through the API
+# (for example priority, project_name, estimated_time_minutes)
