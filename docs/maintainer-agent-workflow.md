@@ -121,7 +121,7 @@ gh pr view <N> --json closingIssuesReferences
 
 ### Session models
 
-Each role runs on a fixed model:
+Each session runs on a fixed model:
 
 | Session | Model |
 |---|---|
@@ -136,8 +136,8 @@ The coordinator, the design worker and the reviewer make or check the decisions 
 
 - **Coordinator.** It checks its own model when it starts. If it is not Opus, it stops and tells the maintainer: a session cannot change its own model.
 - **Workers.** When it starts a worker, the coordinator always passes the model explicitly, and does not rely on the preset or the app default.
-- **Check after the start.** The coordinator reads the model of the started session. The app silently ignores a requested model more expensive than the caller's own, which is also why the coordinator must run on Opus. If the model differs from the table, the coordinator stops that worker before it does any work and applies the [Stop](#rules) rule.
-- **Not covered.** Subagents a session uses only to search or read code.
+- **Check after the start.** The coordinator reads the model of the started session. The app silently ignores a requested model more expensive than the caller's own, which is also why the coordinator must run on Opus. If the model differs from the table, the coordinator stops that session before it does any work and applies the [Stop](#rules) rule.
+- **Not covered.** Subagents a session uses only to search or read code, since they are not roles of the workflow. The reviewer subagent is covered: it runs on Opus.
 
 ### Waiting for CI
 
