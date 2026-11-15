@@ -140,7 +140,7 @@ All of these must hold:
 - the diff was read by the [reviewer](#reviewer), whose verdict is `PASS` on the head commit of the PR, and matches the acceptance criteria of the sub-issue;
 - the [retry limit](#retry-limit) is not exceeded.
 
-"All checks are green" means that every required check has concluded and none failed. A required check that was skipped does not block a merge. A required check that never reported is still pending, and it does block. `Frontend lint (informational)` is not required: its result is read, but it does not block.
+"All checks are green" means that every required check has concluded and none failed. A required check that was skipped does not block a merge. A required check that never reported is still pending, and it does block. The required checks are the five listed in [Repository configuration](#required-checks).
 
 It merges with `gh pr merge <N> --squash` (`--merge` only for the PR that brings `main` into the issue branch), never with `--admin`.
 
@@ -170,7 +170,7 @@ Adopted from google-chat-mcp, where the maintainer decided it on 2026-11-09. `gh
 
 The limit that comes with it: permission patterns cannot tell the base branch of a PR apart, so "a coordinator never approves or merges a PR to `main`" is a written rule, not one the settings enforce. The settings apply to every session in the repository, so the same holds for a worker, which must never approve or merge, and for a session with no role.
 
-Until `.github/CODEOWNERS` exists (see [Still to do](#still-to-do)), a coordinator's approval on a PR to `main` would technically count towards the required review.
+`.github/CODEOWNERS` assigns every path to the repository owner, and `Restricted` requires review from Code Owners, so only the owner's approval satisfies the required review on `main`: a coordinator's approval on a PR to `main` does not count.
 
 ## Protected paths
 
@@ -213,21 +213,78 @@ Sessions use `gh` and `git`, or the GitHub MCP tools in cloud sessions where `gh
 
 ## Repository configuration
 
-These are manual steps for the repository owner: sessions never change them. The docs describe them as they are configured.
+These are manual steps for the repository owner: sessions never change them. The docs describe them as they are configured, and the owner can set up the repository from this section alone. Setting names are the ones of the GitHub UI.
 
-Rulesets (Settings → Rules → Rulesets):
+### Required checks
 
-| Ruleset | Covers | Rules |
-|---|---|---|
-| `Restricted` | default branch | empty bypass list; squash only; linear history; verified signatures; one approval; stale approvals dismissed; last-push approval; conversations resolved; the checks `Backend tests (Python 3.11)`, `(Python 3.12)`, `(Python 3.13)` and `Frontend build`, with an up-to-date branch; no deletion; no non-fast-forward |
-| `MainRuled` | default branch | repeats the deletion and non-fast-forward rules of `Restricted` |
-| `Issue branches` | `refs/heads/issue/*/base` | PR required; one approval; stale approvals dismissed; last-push approval; conversations resolved; verified signatures; the same four checks with an up-to-date branch; merge and squash allowed; checks not enforced on branch creation; no linear history; no deletion rule |
+The checks are named after the jobs of `.github/workflows/tests.yml`. All three rulesets require the same five:
 
-Sub-issue branches are deliberately not covered by `Issue branches`, so workers can push to them. Merge commits are enabled at repository level; `Restricted` keeps `main` squash only.
+- `Backend tests (Python 3.11)`
+- `Backend tests (Python 3.12)`
+- `Backend tests (Python 3.13)`
+- `Frontend build`
+- `Frontend lint`
 
-The setting "Automatically delete head branches" (Settings → General → Pull Requests) is the owner's choice. If the owner enables it, GitHub deletes the head branch of a merged PR by itself, with no action by the coordinator.
+### Rulesets
 
-Also in the repository settings: enable **Private vulnerability reporting** (Settings → Code security), which [SECURITY.md](../SECURITY.md) relies on, and, while the repository is public, **Secret scanning** with push protection.
+Create each one from Settings → Rules → Rulesets → New ruleset → New branch ruleset. For all three, **Enforcement status** is `Active` and the **Bypass list** is empty.
+
+`Restricted`:
+
+1. **Target branches**: Add target → Include default branch.
+2. **Restrict deletions**: on.
+3. **Require linear history**: on.
+4. **Require signed commits**: on.
+5. **Require a pull request before merging**: on, with
+   - **Required approvals**: 1;
+   - **Dismiss stale pull request approvals when new commits are pushed**: on;
+   - **Require review from Code Owners**: on, so that `.github/CODEOWNERS`, which assigns every path to the owner, makes every PR to `main` need the owner's approval. As a consequence the owner cannot author PRs to `main`, since nobody else could approve them;
+   - **Require approval of the most recent reviewable push**: on;
+   - **Require conversation resolution before merging**: on;
+   - **Allowed merge methods**: Squash only.
+6. **Require status checks to pass**: on, with **Require branches to be up to date before merging** on and the five [required checks](#required-checks) added.
+7. **Block force pushes**: on.
+
+`MainRuled`:
+
+1. **Target branches**: Add target → Include default branch.
+2. **Restrict deletions**: on.
+3. **Block force pushes**: on.
+
+No other rule: it only repeats these two rules of `Restricted`.
+
+`Issue branches`:
+
+1. **Target branches**: Add target → Include by pattern → `refs/heads/issue/*/base`.
+2. **Require signed commits**: on.
+3. **Require a pull request before merging**: on, with
+   - **Required approvals**: 1;
+   - **Dismiss stale pull request approvals when new commits are pushed**: on;
+   - **Require approval of the most recent reviewable push**: on;
+   - **Require conversation resolution before merging**: on;
+   - **Allowed merge methods**: Merge and Squash.
+4. **Require status checks to pass**: on, with **Require branches to be up to date before merging** on, **Do not require status checks on creation** on, and the five [required checks](#required-checks) added.
+5. **Restrict deletions** and **Require linear history**: off. Without a deletion rule, "Automatically delete head branches" can delete `issue/<N>/base` when the final PR is merged. Linear history would block the merge commit that brings `main` into the issue branch.
+
+Sub-issue branches `issue/<N>/<kind>-<k>` are deliberately not covered by `Issue branches`, so workers can push to them.
+
+### Repository settings
+
+- Settings → General → Pull Requests: **Allow merge commits** and **Allow squash merging** on. Merge commits are needed to merge `main` into an issue branch; `Restricted` keeps `main` squash only.
+- Settings → General → Pull Requests: **Automatically delete head branches** on (decided by the owner on 2026-11-15). GitHub deletes the head branch of a merged PR by itself, with no action by the coordinator: the sub-issue branches when they are merged into the issue branch, and `issue/<N>/base` when the final PR is merged.
+- Settings → Code security: **Private vulnerability reporting** on, which [SECURITY.md](../SECURITY.md) relies on, and, while the repository is public, **Secret scanning** with **Push protection** on.
+
+### Check after setup
+
+The owner and the coordinator can compare the configured rulesets with this section with read-only calls. The first lists the rulesets, the second shows the rules of one of them:
+
+```bash
+gh api 'repos/{owner}/{repo}/rulesets' --jq '.[] | "\(.id) \(.name) \(.enforcement)"'
+```
+
+```bash
+gh api 'repos/{owner}/{repo}/rulesets/<id>'
+```
 
 ### Limits of the permission entries
 
@@ -235,6 +292,4 @@ The `deny` and `ask` entries of `.claude/settings.json` are patterns on command 
 
 ### Still to do
 
-- Add `.github/CODEOWNERS` with the repository owner on every path (`*`), and enable the code owner review in `Restricted`, so that every PR to `main` needs the owner's approval. From then on the owner cannot author PRs to `main`, since nobody else could approve them.
-- Make `Frontend lint (informational)` a required check once its four existing errors are fixed (`frontend/src/App.tsx`, `frontend/src/TaskRow.tsx`).
 - Define a default identity for sessions started without a preset: postponed, as in google-chat-mcp.
