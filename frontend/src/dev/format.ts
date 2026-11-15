@@ -56,13 +56,10 @@ export function formatMinutes(minutes: number | null | undefined): string {
 
 export function priorityClass(priority: string | null | undefined): string {
   switch ((priority ?? '').toLowerCase()) {
-    case 'alta':
     case 'high':
       return 'dv-prio dv-prio--high'
-    case 'media':
     case 'medium':
       return 'dv-prio dv-prio--medium'
-    case 'bassa':
     case 'low':
       return 'dv-prio dv-prio--low'
     default:

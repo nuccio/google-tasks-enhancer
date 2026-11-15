@@ -30,8 +30,8 @@ SECRET_REFRESH = "1//SECRET-REFRESH-TOKEN-VALUE"
 SECRET_CLIENT = "SECRET-CLIENT-SECRET-VALUE"
 
 STATUSES = ["needsAction", "completed"]
-# The priority column defaults to "media", so it is never NULL in practice
-PRIORITIES = ["alta", "media", "bassa", "media"]
+# The priority column defaults to "medium", so it is never NULL in practice
+PRIORITIES = ["high", "medium", "low", "medium"]
 PROJECTS = ["home", "work", None]
 HASHTAGS = [["shop"], ["q4", "shop"], [], None]
 TASK_COUNT = 150
@@ -385,8 +385,8 @@ def test_tasks_include_deleted(dev_client, seeded):
     [
         ("status", "status", "completed"),
         ("status", "status", "needsAction"),
-        ("priority", "priority", "alta"),
-        ("priority", "priority", "bassa"),
+        ("priority", "priority", "high"),
+        ("priority", "priority", "low"),
         ("project", "project_name", "home"),
         ("project", "project_name", "work"),
     ],

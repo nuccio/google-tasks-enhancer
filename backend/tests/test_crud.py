@@ -17,7 +17,7 @@ def test_create_or_update_task(db):
         "id": "task123",
         "title": "Test Task",
         "status": "needsAction",
-        "priority": "alta"
+        "priority": "high"
     }
     task = crud.create_or_update_task(db, task_data, user_id=user.id)
     assert task.id == "task123"

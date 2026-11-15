@@ -2,6 +2,10 @@ from sqlalchemy import Column, Integer, String, ForeignKey, JSON, Boolean
 from sqlalchemy.orm import relationship
 from .database import Base
 
+# Allowed values of Task.priority. A task without a priority stores NULL.
+PRIORITY_VALUES = ("low", "medium", "high")
+DEFAULT_PRIORITY = "medium"
+
 class User(Base):
     __tablename__ = "users"
 
@@ -35,7 +39,7 @@ class Task(Base):
     tasklist_id = Column(String, nullable=True) # Aggiunto per poter aggiornare il task su Google
     
     # Campi personalizzati
-    priority = Column(String, default="media")
+    priority = Column(String, default=DEFAULT_PRIORITY)
     project_name = Column(String, nullable=True)
     hashtags = Column(JSON, nullable=True) # Dedotti dal titolo
     estimated_time_minutes = Column(Integer, nullable=True)
