@@ -26,7 +26,7 @@ tmp/
 history/
 
 
-# Credenziali Google OAuth (mai nel repository)
+# Google OAuth credentials (never in the repository)
 .env
 **/.env
 client_secret*.json

@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session
 from google.oauth2.credentials import Credentials
-from google.auth.transport.requests import Request as GoogleAuthRequest # Rinomina per evitare conflitti
+from google.auth.transport.requests import Request as GoogleAuthRequest # Renamed to avoid a name clash
 from googleapiclient.discovery import build
 from apscheduler.schedulers.background import BackgroundScheduler
 from dotenv import load_dotenv
@@ -13,17 +13,17 @@ from dotenv import load_dotenv
 from . import crud, models
 from .database import SessionLocal
 
-load_dotenv() # Carica le variabili da .env
+load_dotenv() # Load the variables from .env
 
 def get_google_tasks_service(db: Session, user: models.User):
     credentials_data = user.google_tokens
     
     credentials = Credentials(
         token=credentials_data['access_token'],
-        refresh_token=credentials_data.get('refresh_token'), # Usa .get() nel caso sia mancante
-        client_id=os.getenv("GOOGLE_CLIENT_ID"), # Ottieni da .env
-        client_secret=os.getenv("GOOGLE_CLIENT_SECRET"), # Ottieni da .env
-        token_uri="https://oauth2.googleapis.com/token" # Hardcode o ottieni da discovery, ma da .env è meglio per consistenza
+        refresh_token=credentials_data.get('refresh_token'), # .get() because it may be missing
+        client_id=os.getenv("GOOGLE_CLIENT_ID"), # Read from .env
+        client_secret=os.getenv("GOOGLE_CLIENT_SECRET"), # Read from .env
+        token_uri="https://oauth2.googleapis.com/token" # Hardcoded; could come from discovery or .env for consistency
     )
     
     google_auth_request = GoogleAuthRequest()
@@ -31,15 +31,15 @@ def get_google_tasks_service(db: Session, user: models.User):
     if credentials.expired and credentials.refresh_token:
         try:
             credentials.refresh(google_auth_request)
-            # Aggiorna i token nel DB dopo il refresh
-            user.google_tokens = credentials.to_json() # Aggiorna i token dell'utente
+            # Store the refreshed tokens in the database
+            user.google_tokens = credentials.to_json() # Replace the user's tokens
             db.add(user)
             db.commit()
             db.refresh(user)
             print(f"DEBUG: Tokens refreshed for user {user.id}")
         except Exception as e:
             print(f"Error refreshing tokens for user {user.id}: {e}")
-            raise # Rilancia l'eccezione per fermare la sync se il refresh fallisce
+            raise # Re-raise to stop the sync if the refresh fails
     
     return build('tasks', 'v1', credentials=credentials)
 
@@ -54,10 +54,10 @@ def sync_tasks_for_user(user_id: int):
             print(f"User {user_id} not found or no Google tokens.")
             return
 
-        service = get_google_tasks_service(db, user) # Passa db e user
+        service = get_google_tasks_service(db, user) # Pass db and user
 
-        # TODO: Implementare la logica di "smart polling" qui
-        # Per ora, scarichiamo tutti i task (da migliorare con updatedMin)
+        # TODO: Implement "smart polling" here.
+        # For now all tasks are downloaded (to improve with updatedMin)
         results = service.tasklists().list().execute()
         items = results.get('items', [])
         print(f"DEBUG: Found {len(items)} task lists.")
@@ -70,26 +70,26 @@ def sync_tasks_for_user(user_id: int):
 
             for task_data in tasks:
                 print(f"DEBUG: Processing task: {task_data.get('title', 'No Title')}")
-                # Aggiungi l'ID della tasklist per le future operazioni di update
+                # Keep the task list ID for later update operations
                 task_data['tasklist_id'] = tasklist['id']
                 
-                # Estrai gli hashtags dal titolo
+                # Extract the hashtags from the title
                 task_data['hashtags'] = extract_hashtags(task_data.get('title', ''))
 
-                # Aggiungi default per i campi personalizzati se non presenti
+                # Defaults for the custom fields when they are missing
                 if 'priority' not in task_data: task_data['priority'] = models.DEFAULT_PRIORITY
                 if 'project_name' not in task_data: task_data['project_name'] = None
                 if 'estimated_time_minutes' not in task_data: task_data['estimated_time_minutes'] = None
 
-                # Mappa 'due' da Google Tasks a 'due_date' per consistenza con il modello DB
+                # Map Google Tasks' 'due' to 'due_date', the name used by the DB model
                 if 'due' in task_data:
                     task_data['due_date'] = task_data.pop('due')
                 else:
-                    task_data['due_date'] = None # Assicurati che sia sempre presente, anche se None
+                    task_data['due_date'] = None # Always present, even if None
 
                 crud.create_or_update_task(db, task_data, user_id)
         
-        # Logica per marcare come completati i task non restituiti da Google
+        # Mark as completed the local tasks that Google no longer returns
         local_task_ids = {t.id for t in crud.get_tasks(db, user_id)}
         google_task_ids = {t['id'] for t in tasks}
         
@@ -101,7 +101,7 @@ def sync_tasks_for_user(user_id: int):
                 db_task = crud.get_task(db, task_id, user_id)
                 if db_task and db_task.status != "completed":
                     db_task.status = "completed"
-                    db_task.completed = datetime.now(timezone.utc).isoformat() + 'Z' # Timestamp ISO 8601 UTC
+                    db_task.completed = datetime.now(timezone.utc).isoformat() + 'Z' # ISO 8601 UTC timestamp
                     db.add(db_task)
                     db.commit()
                     db.refresh(db_task)
@@ -110,17 +110,17 @@ def sync_tasks_for_user(user_id: int):
         print(f"Synced tasks for user {user.id}")
 
     except Exception as e:
-        # Cattura l'errore e rilancia con un messaggio più specifico
+        # Catch the error and re-raise it with a more specific message
         error_message = f"Google Tasks API error: {e}"
         print(f"Error syncing tasks for user {user.id}: {error_message}")
-        raise ValueError(error_message) # Rilancia come ValueError per FastAPI
+        raise ValueError(error_message) # Re-raised as ValueError, which the endpoints turn into an HTTP error
     finally:
         db.close()
 
 def update_task_status_on_google(db: Session, user_id: int, task_id: str, tasklist_id: str, new_status: str):
     """
-    Aggiorna lo stato di un task direttamente sulle API di Google Tasks.
-    new_status deve essere 'needsAction' o 'completed'
+    Updates the status of a task directly through the Google Tasks API.
+    new_status must be 'needsAction' or 'completed'
     """
     try:
         user = crud.get_user(db, user_id=user_id)
@@ -129,19 +129,19 @@ def update_task_status_on_google(db: Session, user_id: int, task_id: str, taskli
 
         service = get_google_tasks_service(db, user)
         
-        # Google API richiede l'oggetto task per fare l'update. 
-        # Recuperiamo il task attuale per non sovrascrivere altri campi.
+        # The Google API needs the task object to update it.
+        # Fetch the current task so the other fields are not overwritten.
         task = service.tasks().get(tasklist=tasklist_id, task=task_id).execute()
         task['status'] = new_status
         if new_status == 'completed':
-            # E' buona norma mandare il timestamp, anche se Google lo imposta da solo
+            # Sending the timestamp is good practice, even though Google sets it too
             task['completed'] = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
         else:
-            # Se è needsAction, non possiamo mandare null. Dobbiamo rimuovere le chiavi!
+            # For needsAction null cannot be sent: the keys must be removed
             task.pop('completed', None)
-            task.pop('hidden', None) # I task completati a volte vengono nascosti
+            task.pop('hidden', None) # Completed tasks are sometimes hidden
 
-        # Usa patch invece di update. Patch invia solo i campi forniti, molto più sicuro.
+        # Use patch instead of update: patch sends only the given fields, which is safer.
         updated_task = service.tasks().patch(tasklist=tasklist_id, task=task_id, body=task).execute()
         return updated_task
     except Exception as e:
@@ -156,20 +156,20 @@ def start_scheduler():
         scheduler.start()
 
 def add_user_to_sync(user_id: int, interval_minutes: int = 5, run_immediately: bool = True):
-    # Evita di aggiungere lo stesso job più volte
+    # Avoid adding the same job twice
     job_id = f"sync_user_{user_id}"
     if scheduler.get_job(job_id):
         scheduler.remove_job(job_id)
     scheduler.add_job(sync_tasks_for_user, 'interval', minutes=interval_minutes, args=[user_id], id=job_id)
     if run_immediately:
-        sync_tasks_for_user(user_id) # Esegui una sincronizzazione immediata
+        sync_tasks_for_user(user_id) # Run an immediate sync
 
 def sync_all_existing_users_on_startup():
     db: Session = SessionLocal()
     try:
         users = db.query(models.User).all()
         for user in users:
-            add_user_to_sync(user.id) # Aggiungi allo scheduler e sincronizza immediatamente
+            add_user_to_sync(user.id) # Add to the scheduler and sync immediately
     except Exception as e:
         print(f"Error syncing all existing users on startup: {e}")
     finally:
