@@ -27,8 +27,8 @@ oauth.register(
 @router.get('/login/google', name='login_google')
 async def login(request: Request):
     """
-    Inizia il flusso di autenticazione OAuth2 con Google.
-    Reindirizza l'utente alla pagina di login di Google.
+    Starts the OAuth2 flow with Google.
+    Redirects the user to the Google login page.
     """
     redirect_uri = request.url_for('auth_callback')
     return await oauth.google.authorize_redirect(request, redirect_uri)
@@ -36,21 +36,21 @@ async def login(request: Request):
 @router.get('/google', name='auth_callback')
 async def auth_callback(request: Request, db: Session = Depends(get_db)):
     """
-    Endpoint di callback per Google OAuth2.
-    Riceve il token, crea o aggiorna l'utente nel database e avvia la sincronizzazione dei task.
+    Callback endpoint for Google OAuth2.
+    Receives the token, creates or updates the user in the database and starts the task sync.
     """
     token = await oauth.google.authorize_access_token(request)
     user_info = token.get('userinfo')
 
-    # Salva o aggiorna l'utente nel DB
+    # Create the user or update their tokens in the database
     user = crud.get_user_by_email(db, email=user_info['email'])
     if not user:
         user = crud.create_user(db, email=user_info['email'], google_tokens=token)
-        # Assicuriamoci che anche i nuovi utenti siano aggiunti allo scheduler
+        # New users are added to the scheduler too
         scheduler.add_user_to_sync(user.id)
     else:
         crud.update_user_tokens(db, user_id=user.id, google_tokens=token)
-        scheduler.add_user_to_sync(user.id) # Ri-aggiungi/aggiorna lo scheduler
+        scheduler.add_user_to_sync(user.id) # Re-add the job to the scheduler
 
     request.session['user'] = user_info
-    return RedirectResponse(url='/') # Reindirizza alla UI
+    return RedirectResponse(url='/') # Redirect to the UI

@@ -21,7 +21,7 @@ def test_force_sync_unauthorized(mock_sync, client):
     assert response.status_code == 401
     mock_sync.assert_not_called()
 
-# Per testare endpoint autorizzati senza dover gestire i cookie di sessione reali,
-# potremmo usare una dipendenza per l'utente invece di leggere direttamente dalla sessione.
-# Ma dato che il codice attuale legge da request.session, i test di integrazione completi
-# richiederebbero un setup più complesso. Per ora ci fermiamo a questi test di base.
+# To test authorized endpoints without handling real session cookies, the user could
+# come from a dependency instead of being read directly from the session.
+# Since the current code reads request.session, full integration tests would
+# need a more complex setup. For now these basic tests are enough.

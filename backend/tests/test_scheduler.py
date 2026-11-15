@@ -3,9 +3,9 @@ from unittest.mock import MagicMock, patch
 from backend import scheduler, models, crud
 
 def test_extract_hashtags():
-    assert scheduler.extract_hashtags("Comprare latte #casa #spesa") == ["casa", "spesa"]
-    assert scheduler.extract_hashtags("Nessun hashtag") == []
-    assert scheduler.extract_hashtags("#inizio hashtag") == ["inizio"]
+    assert scheduler.extract_hashtags("Buy milk #home #shopping") == ["home", "shopping"]
+    assert scheduler.extract_hashtags("No hashtag") == []
+    assert scheduler.extract_hashtags("#start hashtag") == ["start"]
 
 @patch("backend.scheduler.get_google_tasks_service")
 @patch("backend.scheduler.SessionLocal")
@@ -25,7 +25,7 @@ def test_sync_tasks_for_user(mock_session_local, mock_get_service, db):
         "items": [{"id": "list1", "title": "My List"}]
     }
     
-    # Mock tasks().list().execute() - Stato di partenza su Google
+    # Mock tasks().list().execute() - Initial state on Google
     mock_service.tasks().list().execute.return_value = {
         "items": [
             {
@@ -36,10 +36,10 @@ def test_sync_tasks_for_user(mock_session_local, mock_get_service, db):
         ]
     }
     
-    # Esegui sync
+    # Run the sync
     scheduler.sync_tasks_for_user(user.id)
     
-    # Verifica che il task sia stato creato localmente
+    # Check that the task was created locally
     tasks = crud.get_tasks(db, user_id=user.id)
     assert len(tasks) == 1
     assert tasks[0].id == "gtask1"
@@ -55,21 +55,21 @@ def test_sync_tasks_smart_completion(mock_session_local, mock_get_service, db):
     # Setup user
     user = crud.create_user(db, email="sync@example.com", google_tokens={"access_token": "valid"})
     
-    # Stato di partenza locale: un task che non esiste più su Google
+    # Initial local state: a task that no longer exists on Google
     crud.create_or_update_task(db, {"id": "old_task", "title": "Old Task", "status": "needsAction"}, user_id=user.id)
     
     # Setup Mock Google Service
     mock_service = MagicMock()
     mock_get_service.return_value = mock_service
     
-    # Mock Google Tasks: restituisce una lista vuota di task
+    # Mock Google Tasks: returns an empty list of tasks
     mock_service.tasklists().list().execute.return_value = {"items": [{"id": "list1", "title": "My List"}]}
     mock_service.tasks().list().execute.return_value = {"items": []}
     
-    # Esegui sync
+    # Run the sync
     scheduler.sync_tasks_for_user(user.id)
     
-    # Verifica la logica smart: il task locale deve essere marcato come "completed"
+    # The local task must be marked as "completed"
     db_task = crud.get_task(db, "old_task", user.id)
     assert db_task.status == "completed"
     assert db_task.completed is not None
