@@ -231,7 +231,7 @@ export default function DevApp() {
               users={meta?.users ?? []}
               statuses={normalizeBuckets(overview?.by_status)}
               priorities={normalizeBuckets(overview?.by_priority)}
-              projects={normalizeBuckets(overview?.by_project)}
+              projects={normalizeBuckets(overview?.by_project_name)}
               hashtags={normalizeBuckets(overview?.by_hashtag).map((b) => ({
                 ...b,
                 value: b.value ? b.value.replace(/^#/, '') : b.value,

@@ -20,7 +20,7 @@ export interface Overview {
   tasks: number
   by_status: RawBuckets
   by_priority: RawBuckets
-  by_project: RawBuckets
+  by_project_name: RawBuckets
   /** Top 20 hashtags. */
   by_hashtag: RawBuckets
   deleted: number

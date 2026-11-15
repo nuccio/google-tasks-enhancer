@@ -118,7 +118,7 @@ export default function OverviewPanel({ overview, view, now, onFilter, onShowDel
 
   const byStatus = normalizeBuckets(overview.by_status)
   const byPriority = normalizeBuckets(overview.by_priority)
-  const byProject = normalizeBuckets(overview.by_project)
+  const byProject = normalizeBuckets(overview.by_project_name)
   const byHashtag = normalizeBuckets(overview.by_hashtag).map((b) => ({
     ...b,
     value: b.value ? b.value.replace(/^#/, '') : b.value,
