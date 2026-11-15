@@ -39,25 +39,24 @@ function App() {
         return [...incompleteTasks, ...completedTasks];
     }, []);
 
-    const loadUserData = useCallback(async () => {
-        try {
-            setLoading(true);
-            const currentUser = await fetchUser();
-            setUser(currentUser);
-            if (currentUser) {
-                const fetchedTasks = await fetchTasks();
-                setTasks(sortTasks(fetchedTasks));
-            }
-        } catch (err) {
-            setError((err as Error).message);
-        } finally {
-            setLoading(false);
-        }
-    }, [sortTasks]);
-
+    // Initial load, once on mount. `loading` already starts as true; state is
+    // only set from the promise callbacks, after the requests have finished.
     useEffect(() => {
-        loadUserData();
-    }, [loadUserData]);
+        fetchUser()
+            .then(async currentUser => {
+                setUser(currentUser);
+                if (currentUser) {
+                    const fetchedTasks = await fetchTasks();
+                    setTasks(sortTasks(fetchedTasks));
+                }
+            })
+            .catch((err: unknown) => {
+                setError((err as Error).message);
+            })
+            .finally(() => {
+                setLoading(false);
+            });
+    }, [sortTasks]);
 
     const handleSync = async () => {
         setIsSyncing(true);
