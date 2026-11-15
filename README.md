@@ -100,6 +100,16 @@ python3 -m uvicorn backend.main:app --host 0.0.0.0 --port 8000 --log-level debug
 ```
 Per fermare il server, premi `Ctrl+C`.
 
+## Running the checks
+
+```bash
+python3 -m pytest backend/tests     # from the repository root; needs backend requirements + pytest installed
+cd frontend && npm run build        # type-check + build
+cd frontend && npm run lint
+```
+
+CI runs these three checks, and all of them are required checks.
+
 ## Utilizzo
 
 ### Autenticazione
