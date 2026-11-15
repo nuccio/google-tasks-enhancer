@@ -24,8 +24,9 @@ After changing the model in `backend/models.py`, add an Alembic migration in `ba
 
 ## Layout
 
-- `backend/`: `main.py` (FastAPI app and endpoints), `auth.py` (Google OAuth), `scheduler.py` (sync with Google Tasks, token handling), `crud.py`, `models.py`, `database.py`, `alembic/` (migrations), `tests/`.
+- `backend/`: `main.py` (FastAPI app and endpoints), `auth.py` (Google OAuth), `scheduler.py` (sync with Google Tasks, token handling), `crud.py`, `models.py`, `database.py`, `devui.py` (read-only dev API under `/dev/api` for the local data viewer), `alembic/` (migrations), `tests/`.
 - `frontend/src/`: `api.ts` (calls to the API), `App.tsx`, `TaskTable.tsx`, `TaskRow.tsx`, `Header.tsx`, `LoginView.tsx`.
+- `frontend/dev.html`: the local data viewer page, served at `/dev`; its code is in `frontend/src/dev/`, separate from the app.
 - `docs/maintainer-agent-workflow.md`: the rules of the maintainer's Claude sessions.
 
 ## Rules that matter

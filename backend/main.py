@@ -1,5 +1,5 @@
 from fastapi import FastAPI, Depends, HTTPException, status
-from fastapi.responses import RedirectResponse, HTMLResponse
+from fastapi.responses import RedirectResponse, HTMLResponse, PlainTextResponse
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.requests import Request
 from sqlalchemy.orm import Session
@@ -8,7 +8,7 @@ from typing import Optional
 import os
 from fastapi.staticfiles import StaticFiles
 
-from . import models, database, crud, auth, scheduler
+from . import models, database, crud, auth, scheduler, devui
 
 class TaskUpdate(BaseModel):
     status: Optional[str] = None
@@ -48,6 +48,9 @@ app.add_middleware(SessionMiddleware, secret_key=os.getenv("SECRET_KEY"))
 
 # Includi il router di autenticazione
 app.include_router(auth.router, prefix="/auth", tags=["Autenticazione"])
+
+# Read-only dev UI API: always registered, answers 404 unless DEV_UI_ENABLED is on
+app.include_router(devui.router)
 
 @app.on_event("startup")
 def startup_event():
@@ -160,11 +163,29 @@ if os.path.isdir(STATIC_DIR):
 else:
     print(f"WARNING: Frontend static files directory not found at {STATIC_DIR}")
 
+@app.get("/dev", include_in_schema=False, dependencies=[Depends(devui.require_dev_access)])
+@app.get("/dev/", include_in_schema=False, dependencies=[Depends(devui.require_dev_access)])
+async def serve_dev_ui():
+    """
+    Serve the read-only dev UI page, behind the same guard as /dev/api.
+    """
+    dev_file_path = os.path.join(STATIC_DIR, "dev.html")
+    if not os.path.exists(dev_file_path):
+        return PlainTextResponse(
+            "Dev UI page not built: run `npm run build` in frontend/.",
+            status_code=status.HTTP_404_NOT_FOUND,
+        )
+    with open(dev_file_path, "r") as f:
+        return HTMLResponse(content=f.read())
+
 @app.get("/{full_path:path}", tags=["Generale"])
 async def serve_frontend(request: Request, full_path: str):
     """
     Serve the frontend application.
     """
+    if full_path == "dev/api" or full_path.startswith("dev/api/"):
+        # Unknown dev API paths must not fall back to the app's index.html
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not Found")
     html_file_path = os.path.join(STATIC_DIR, "index.html")
     if os.path.exists(html_file_path):
         with open(html_file_path, "r") as f:
