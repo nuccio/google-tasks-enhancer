@@ -74,9 +74,18 @@ export function normalizeBuckets(raw: RawBuckets | null | undefined): Bucket[] {
   return buckets.sort((a, b) => b.count - a.count)
 }
 
-/** Message for the error banner. */
-export function describeError(error: unknown): { title: string; message: string } {
+/**
+ * Message for an error. `page` is the page banner, where a 404 means the dev UI
+ * is off; `task` is the detail drawer, where a 404 means the task does not exist.
+ */
+export function describeError(
+  error: unknown,
+  context: 'page' | 'task' = 'page',
+): { title: string; message: string } {
   if (error instanceof DevApiError) {
+    if (error.status === 404 && context === 'task') {
+      return { title: 'Task not found', message: 'The local database has no task with this id.' }
+    }
     if (error.status === 404) {
       return {
         title: 'Dev UI is disabled',

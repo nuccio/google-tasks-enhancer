@@ -48,7 +48,8 @@ export function readView(search: string): ViewState {
   const order = p.get('order')
   const limit = positiveInt(p.get('limit'), DEFAULT_LIMIT)
   return {
-    user_id: p.get('user_id') ?? '',
+    // A user id is a positive integer; anything else would make the API answer 422.
+    user_id: /^[1-9]\d*$/.test(p.get('user_id') ?? '') ? (p.get('user_id') as string) : '',
     status: p.get('status') ?? '',
     priority: p.get('priority') ?? '',
     project: p.get('project') ?? '',

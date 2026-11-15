@@ -33,8 +33,8 @@ type MetaResult = { reload: number } & ({ ok: true; meta: Meta } | { ok: false; 
 type TasksResult = { query: TaskQuery; reload: number } & ({ ok: true; page: TaskPage } | { ok: false; error: unknown })
 type DetailResult = { id: string; reload: number } & ({ ok: true; task: Task } | { ok: false; error: unknown })
 
-const errorLine = (error: unknown) => {
-  const { title, message } = describeError(error)
+const taskErrorLine = (error: unknown) => {
+  const { title, message } = describeError(error, 'task')
   return `${title}. ${message}`
 }
 
@@ -266,7 +266,7 @@ export default function DevApp() {
         <TaskDrawer
           taskId={view.task}
           task={detail && detail.ok ? detail.task : null}
-          error={detail && !detail.ok ? errorLine(detail.error) : null}
+          error={detail && !detail.ok ? taskErrorLine(detail.error) : null}
           now={now}
           userEmails={userEmails}
           onClose={closeDrawer}
