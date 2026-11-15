@@ -1,115 +1,156 @@
-# Google Tasks Enhancer Backend
+# Google Tasks Enhancer
 
-Questo è il backend di un'applicazione progettata per estendere e gestire le funzionalità di Google Tasks. Permette agli utenti di sincronizzare le proprie attività da Google Tasks, arricchirle con campi personalizzati (come priorità, nome progetto, hashtag e tempo stimato), e mantenerle aggiornate in un database locale. L'applicazione espone un'API REST per l'interazione e include uno scheduler per la sincronizzazione automatica.
+Google Tasks Enhancer extends Google Tasks. It syncs your tasks from Google Tasks into a local database, adds custom fields to them (priority, project name, hashtags and estimated time) and keeps them up to date. The app has a FastAPI backend with a REST API and a scheduler for automatic sync, and a React frontend that the backend serves.
 
-## Caratteristiche
+## Features
 
-*   **Sincronizzazione Bidirezionale (Parziale):** Sincronizza task da Google Tasks al database locale.
-*   **Campi Personalizzati:** Aggiunge `priority`, `project_name`, `hashtags` (dedotti dal titolo) e `estimated_time_minutes` ai task.
-*   **Autenticazione Google OAuth 2.0:** Supporta il login con account Google per più utenti (Web Application Flow).
-*   **Database SQLite:** Utilizza SQLite per la persistenza dei dati, facile da configurare e ideale per lo sviluppo.
-*   **API REST:** Espone endpoint per la gestione dei task.
-*   **Sincronizzazione Automatica:** Esegue la sincronizzazione di tutti gli utenti registrati all'avvio e poi ogni 5 minuti.
+*   **Sync from Google Tasks (partial two-way):** Syncs tasks from Google Tasks into the local database.
+*   **Custom fields:** Adds `priority`, `project_name`, `hashtags` (taken from the title) and `estimated_time_minutes` to the tasks.
+*   **Google OAuth 2.0 sign-in:** Supports signing in with a Google account for several users (web application flow).
+*   **SQLite database:** Uses SQLite for persistence, which is easy to set up and fine for development.
+*   **REST API:** Exposes endpoints to manage the tasks.
+*   **Automatic sync:** Syncs all registered users at start-up and then every 5 minutes.
+*   **UI languages:** English (default) and Italian (see [UI languages](#ui-languages)).
 
-### Logica di Sincronizzazione Dati
+### Data sync logic
 
-Il backend implementa una logica di sincronizzazione "smart" per mantenere il database locale aggiornato con Google Tasks:
-1.  **Recupero Completo:** Quando un utente si autentica o all'avvio dello scheduler, l'applicazione recupera **tutti i task** (inclusi quelli completati) dalla Google Tasks API per l'utente.
-2.  **Aggiornamento Incrementale:** Ogni task ricevuto dall'API viene confrontato con la versione presente nel database locale. Se il task esiste già, i suoi campi vengono aggiornati. Se è un nuovo task, viene aggiunto.
+The backend uses a "smart" sync to keep the local database up to date with Google Tasks:
+1.  **Full fetch:** When a user signs in, or when the scheduler starts, the app fetches **all the tasks** (completed ones included) of the user from the Google Tasks API.
+2.  **Incremental update:** Each task received from the API is compared with the version in the local database. If the task already exists, its fields are updated. If it is a new task, it is added.
 
-#### Motivazione per la Gestione dei Task Completati
+#### Why completed tasks need special handling
 
-Abbiamo osservato che, in alcune circostanze, la Google Tasks API, nonostante la richiesta esplicita di includere i task completati (`showCompleted=True`), **non restituisce sempre i task che sono stati marcati come "completati"** dall'interfaccia utente di Google Tasks. Questo crea una discrepanza tra lo stato visibile all'utente e i dati ottenibili tramite API.
+We observed that, in some cases, the Google Tasks API does **not always return the tasks that were marked as "completed"** in the Google Tasks interface, even when the request explicitly asks for completed tasks (`showCompleted=True`). This creates a gap between the state the user sees and the data the API returns.
 
-Per garantire la coerenza dei dati nel nostro database locale, abbiamo adottato la seguente strategia:
-Se un task è presente nel nostro database locale ma **non viene restituito** dalla Google Tasks API durante la sincronizzazione, l'applicazione assume che questo task sia stato completato dall'utente. Di conseguenza, il task viene **automaticamente aggiornato allo stato "completed"** nel database locale, con un timestamp di completamento. Questa logica ci permette di riflettere correttamente lo stato dei task anche in presenza di comportamenti inattesi o filtraggi impliciti da parte dell'API di Google.
+To keep the local data consistent, we use this strategy:
+If a task is in our local database but is **not returned** by the Google Tasks API during a sync, the app assumes the user completed it. The task is then **automatically set to the "completed" status** in the local database, with a completion timestamp. This way the app reflects the right state of the tasks even when the Google API behaves unexpectedly or filters tasks implicitly.
 
-## Architettura
+## Architecture
 
-Il backend è costruito con **FastAPI** (Python), utilizzando **SQLAlchemy** come ORM e **APScheduler** per i job in background.
+The backend is built with **FastAPI** (Python), using **SQLAlchemy** as the ORM and **APScheduler** for background jobs. The frontend (`frontend/`) is a React + TypeScript app built with Vite; the API serves its production build.
 
-Componenti principali:
-*   `main.py`: Entrypoint dell'applicazione FastAPI e definizione degli endpoint principali.
-*   `auth.py`: Gestione del flusso di autenticazione Google OAuth 2.0.
-*   `database.py`: Configurazione della connessione al database SQLite.
-*   `models.py`: Definizione dei modelli di database per `User` e `Task`.
-*   `crud.py`: Operazioni CRUD (Create, Read, Update, Delete) per i dati del database.
-*   `scheduler.py`: Logica per la sincronizzazione dei task in background con Google Tasks.
+Main components of `backend/`:
+*   `main.py`: Entry point of the FastAPI app and its main endpoints.
+*   `auth.py`: Google OAuth 2.0 authentication flow.
+*   `database.py`: SQLite connection setup.
+*   `models.py`: Database models for `User` and `Task`.
+*   `crud.py`: CRUD (Create, Read, Update, Delete) operations on the database.
+*   `scheduler.py`: Background sync of the tasks with Google Tasks.
 *   `devui.py`: read-only dev API under `/dev/api` for the local data viewer, off by default (see [Local data viewer](#local-data-viewer-development-only)).
+*   `alembic/`: database migrations.
 
-## Setup e Installazione
+## Setup and installation
 
-Per avviare il backend in locale, segui questi passaggi:
+To run the app locally, follow these steps:
 
-### 1. Clona il Repository (se non l'hai già fatto)
+### 1. Clone the repository
 
 ```bash
-git clone <URL_DEL_TUO_REPOSITORY>
-cd google-tasks-enhancer-backend # O il nome della tua directory clonata
+git clone https://github.com/nuccio/google-tasks-enhancer
+cd google-tasks-enhancer
 ```
 
-### 2. Configura le Credenziali Google Cloud
+### 2. Set up the Google Cloud credentials
 
-1.  **Google Cloud Console:** Vai su [https://console.cloud.google.com/](https://console.cloud.google.com/).
-2.  **Seleziona/Crea Progetto:** Assicurati di essere nel progetto corretto.
-3.  **Abilita API:** Vai su `API e servizi > Libreria` e abilita **"Google Tasks API"**.
-4.  **Crea Credenziali OAuth 2.0:**
-    *   Vai su `API e servizi > Credenziali`.
-    *   Clicca `Crea credenziali > ID client OAuth`.
-    *   **Tipo di applicazione:** `Applicazione Web`.
-    *   **Nome:** `Google Tasks Enhancer Web App` (o simile).
-    *   **URI di reindirizzamento autorizzati:** Aggiungi `http://localhost:8000/auth/google`.
-    *   Copia **Client ID** e **Client secret**: ti serviranno nel passo successivo. L'applicazione non legge il file JSON scaricabile dalla console, quindi non serve salvarlo nel progetto.
+1.  **Google Cloud Console:** Go to [https://console.cloud.google.com/](https://console.cloud.google.com/).
+2.  **Select or create a project:** Make sure you are in the right project.
+3.  **Enable the API:** Go to `APIs & Services > Library` and enable the **"Google Tasks API"**.
+4.  **Create OAuth 2.0 credentials:**
+    *   Go to `APIs & Services > Credentials`.
+    *   Click `Create credentials > OAuth client ID`.
+    *   **Application type:** `Web application`.
+    *   **Name:** `Google Tasks Enhancer Web App` (or similar).
+    *   **Authorized redirect URIs:** Add `http://localhost:8000/auth/google`.
+    *   Copy the **Client ID** and the **Client secret**: you need them in the next step. The app does not read the JSON file you can download from the console, so you do not need to save it in the project.
 
-### 3. Configura le Variabili d'Ambiente
+### 3. Set the environment variables
 
-Copia `backend/env.example` in `backend/.env` e sostituisci i placeholder con i tuoi valori:
+Copy `backend/env.example` to `backend/.env` and replace the placeholders with your values:
 
 ```bash
 cp backend/env.example backend/.env
 ```
 
 ```dotenv
-GOOGLE_CLIENT_ID=IL_TUO_CLIENT_ID_DA_CREDENTIALS.JSON
-GOOGLE_CLIENT_SECRET=LA_TUA_CHIAVE_SECRETA_CLIENT_DA_CREDENTIALS.JSON
-SECRET_KEY=UNA_LUNGA_E_CASUALE_STRINGA_SECRETA_PER_LE_SESSIONI_FASTAPI
+GOOGLE_CLIENT_ID=YOUR_CLIENT_ID
+GOOGLE_CLIENT_SECRET=YOUR_CLIENT_SECRET
+SECRET_KEY=A_LONG_RANDOM_SECRET_STRING_FOR_THE_FASTAPI_SESSIONS
 ```
-*Assicurati che `SECRET_KEY` sia una stringa lunga e casuale, ad esempio generata con `python3 -c "import secrets; print(secrets.token_hex(32))"`.*
+*Make sure `SECRET_KEY` is a long random string, for example generated with `python3 -c "import secrets; print(secrets.token_hex(32))"`.*
 
-> **Sicurezza:** `backend/.env` e qualsiasi file `client_secret*.json` / `credentials.json` sono esclusi da git tramite `.gitignore`. Non committare mai credenziali reali.
+> **Security:** `backend/.env` and any `client_secret*.json` / `credentials.json` file are excluded from git by `.gitignore`. Never commit real credentials.
 
-### 4. Installazione delle Dipendenze
+### 4. Install the dependencies
 
-Serve Python 3.11 o superiore. Dalla radice del repository:
+Python 3.11 or later is required. From the repository root:
 
 ```bash
 python3 -m pip install -r backend/requirements.txt
 ```
 
-Per il frontend (Node.js) serve solo se vuoi modificarlo o ricompilarlo:
+Node.js is needed for the frontend only if you want to change or rebuild it:
 
 ```bash
 cd frontend && npm ci && npm run build
 ```
 
-### 5. Avvio del Server
+### 5. Update an existing database
 
-Dalla radice del repository (le variabili vengono lette da `backend/.env`):
+**Skip this step on a fresh clone.** There is no `backend/app.db` yet: the app creates the tables when it starts for the first time (step 6). Running the commands below without a database creates an empty file, and `alembic upgrade head` then fails with `no such table: tasks`.
+
+This step is only for a database that already exists, for example one created by an earlier version of the app. The app creates its tables at start-up but does not run Alembic, so run the migrations after you pull a new version of the code. The commands below use the database that `backend/alembic/env.py` points at, which is `backend/app.db`, the file that holds the users' Google tokens in clear text. Never commit it.
+
+1.  Check which revision the database is at. This reads only the version table, not your data:
+
+    ```bash
+    cd backend && python3 -m alembic current
+    ```
+
+2.  If it shows no revision and the database was created by the app (not by Alembic), record the schema it already has, once:
+
+    ```bash
+    python3 -m alembic stamp fb815bf08509
+    ```
+
+3.  Back up the database first: copy `app.db` to a file whose name ends in `.db`, for example `app-backup.db`, so that git ignores the copy. From the `backend/` directory (where the commands above leave you): `cp app.db app-backup.db`. To restore, copy it back the same way. Then apply the migrations:
+
+    ```bash
+    python3 -m alembic upgrade head
+    ```
+
+The latest revision, `c3a91e7d5b24`, stores the task priorities with English values. It changes only data, not the schema: in the `priority` column of every task, `media`, `alta` and `bassa` (case and surrounding spaces ignored) become `medium`, `high` and `low`. All other values are left as they are. To go back, run `python3 -m alembic downgrade fb815bf08509`: it turns `medium`, `high` and `low` back into `media`, `alta` and `bassa`. The database does not record which rows the upgrade changed, so rows that were already English before the upgrade (set from the UI) also become Italian on downgrade.
+
+### 6. Start the server
+
+From the repository root (the variables are read from `backend/.env`):
 
 ```bash
 python3 -m uvicorn backend.main:app --host 0.0.0.0 --port 8000 --log-level debug
 ```
-Per fermare il server, premi `Ctrl+C`.
+To stop the server, press `Ctrl+C`.
+
+## UI languages
+
+The UI is in English by default. Italian is available from the language selector in the header and on the login page.
+
+- The choice is kept in the browser's `localStorage` under the key `gte.locale`. Nothing is sent to the server, and the browser's own language is not used.
+- To add or change a text, edit both dictionaries, `frontend/src/i18n/en.ts` and `frontend/src/i18n/it.ts`. A key missing from one of them fails `npm run build`.
+- The `/dev` data viewer is always in English.
 
 ## Running the checks
 
 ```bash
 python3 -m pytest backend/tests     # from the repository root; needs backend requirements + pytest installed
+cd frontend && npm test             # unit tests (Vitest)
 cd frontend && npm run build        # type-check + build
 cd frontend && npm run lint
 ```
 
-CI runs these three checks, and all of them are required checks.
+CI runs these checks, and all of them are required checks: the backend tests run on Python 3.11, 3.12 and 3.13, and `Frontend build` runs `npm test` and then `npm run build`.
+
+### Repository language check
+
+Everything in the repository is written in English; the only Italian file is the UI dictionary `frontend/src/i18n/it.ts`. `backend/tests/test_repository_language.py` guards this. It runs over every tracked text file and looks for accented vowels and for a short list of distinctive Italian words, and it fails with the file, line and word it found. It is a safety net for the obvious cases, not proof that a file is English. An exception is one line with a reason in `EXCEPTIONS` in that test; the list `NOT_TRANSLATED_YET` is for files that wait for their translation and must stay empty.
 
 ## Local data viewer (development only)
 
@@ -170,25 +211,27 @@ All of them are `GET` requests under `/dev/api`:
 
 uvicorn's access log records every request URL, so the filter and search values typed in the viewer appear in the terminal. Add `--no-access-log` to the uvicorn command to turn the access log off.
 
-## Utilizzo
+## Usage
 
-### Autenticazione
+### Sign in
 
-1.  Apri il tuo browser (preferibilmente in incognito) e vai a `http://localhost:8000/`.
-2.  Verrai reindirizzato alla pagina di login di Google. Effettua l'accesso con l'account Google per cui desideri sincronizzare i task (assicurati che sia un utente di test configurato nella Google Cloud Console).
-3.  Dopo l'autenticazione, verrai reindirizzato alla pagina `/` del backend.
+1.  Open your browser (preferably in a private window) and go to `http://localhost:8000/`.
+2.  The app shows its login page. Use it to sign in with Google, with the Google account whose tasks you want to sync (make sure it is a test user configured in the Google Cloud Console).
+3.  After signing in you are sent back to `/`, where the app shows your tasks.
 
-### Endpoint API
+### API endpoints
 
-*   **`GET /`**: Home page dell'API (richiede autenticazione).
-*   **`GET /auth/login/google`**: Inizia il flusso di autenticazione Google OAuth 2.0.
-*   **`GET /auth/google`**: Callback URL per l'autenticazione Google.
-*   **`GET /tasks/`**: Recupera tutti i task sincronizzati per l'utente autenticato.
-*   **`POST /tasks/sync`**: Forza una sincronizzazione manuale dei task per l'utente autenticato.
+*   **`GET /`**: Serves the frontend application (any path that no other endpoint handles gets the same page, except unknown `/dev/api/*` paths, which answer `404`).
+*   **`GET /auth/login/google`**: Starts the Google OAuth 2.0 sign-in flow.
+*   **`GET /auth/google`**: Callback URL for the Google sign-in.
+*   **`GET /auth/me`**: Returns the email of the signed-in user (requires authentication).
+*   **`GET /tasks/`**: Returns all the synced tasks of the signed-in user.
+*   **`POST /tasks/sync`**: Forces a manual sync of the tasks of the signed-in user.
+*   **`PATCH /tasks/{id}`**: Updates the fields of a task. `priority` accepts `low`, `medium`, `high` or `null`; any other value is rejected with a `422` error. A change of `status` is also sent to Google Tasks.
 *   **`GET /dev`** and **`GET /dev/api/*`**: local read-only data viewer, off by default and for development only (see [Local data viewer](#local-data-viewer-development-only)).
 
-Puoi esplorare e testare gli endpoint tramite la documentazione interattiva di FastAPI all'indirizzo `http://localhost:8000/docs` (dopo aver avviato il server e autenticato via browser).
+You can explore and try the endpoints in the interactive FastAPI documentation at `http://localhost:8000/docs` (after starting the server and signing in with the browser). The endpoints are grouped under the tags `Authentication`, `Tasks`, `General` and `Dev UI`.
 
-## Contribuzione
+## Contributing
 
-Sentiti libero di clonare, modificare e contribuire.
+Feel free to clone, change and contribute. See [CONTRIBUTING.md](CONTRIBUTING.md).

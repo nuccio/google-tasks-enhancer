@@ -29,10 +29,9 @@ EXCEPTIONS = {
 }
 
 # Files that are still Italian and wait for their translation.
-# The docs step of #56 empties this set; the final PR must have it empty.
-NOT_TRANSLATED_YET = frozenset({
-    "README.md",
-})
+# It is empty and must stay empty: a new Italian text is an exception above,
+# with a reason, or it is translated.
+NOT_TRANSLATED_YET = frozenset()
 
 # Files that are not text worth checking.
 SKIPPED_FILES = {
@@ -81,6 +80,8 @@ ITALIAN_WORDS = [
     "funzione",
     "valore",
     "messaggio",
+    "contiene",
+    "ecc",
 ]
 
 ACCENT_RE = re.compile(f"[{ACCENTED_VOWELS}]")

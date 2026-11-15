@@ -5,7 +5,7 @@ Syncs Google Tasks into a local SQLite database and adds custom fields (priority
 ## Language
 
 - **Talk to the maintainer in Italian**: replies, questions, explanations, summaries in chat.
-- **Everything new written into the project is in English**: documentation, issues, pull requests, commit messages, log messages, code comments, docstrings, identifiers and error messages. `README.md` and older code comments are still in Italian; translate them only when you touch them for another reason.
+- **Everything written into the repository is in English**: documentation, issues, pull requests, commit messages, log messages, code comments, docstrings, identifiers and error messages. Italian is used only in the conversation with the maintainer. `frontend/src/i18n/it.ts` is the only Italian file.
 
 ## Commands
 
@@ -13,9 +13,12 @@ Syncs Google Tasks into a local SQLite database and adds custom fields (priority
 python3 -m pip install -r backend/requirements.txt pytest   # backend + test dependencies
 python3 -m pytest backend/tests                             # unit tests, from the repository root
 python3 -m uvicorn backend.main:app --reload                # API on http://localhost:8000, needs backend/.env
+cd backend && python3 -m alembic current                    # database revision (reads only the version table)
+cd backend && python3 -m alembic stamp fb815bf08509         # only if no revision is shown and the app created the database
 cd backend && python3 -m alembic upgrade head               # apply database migrations
 cd frontend && npm ci                                       # frontend dependencies
 cd frontend && npm run dev                                  # Vite dev server
+cd frontend && npm test                                     # frontend unit tests (Vitest)
 cd frontend && npm run build                                # type-check + build, served by the API from frontend/dist
 cd frontend && npm run lint
 ```
@@ -25,7 +28,8 @@ After changing the model in `backend/models.py`, add an Alembic migration in `ba
 ## Layout
 
 - `backend/`: `main.py` (FastAPI app and endpoints), `auth.py` (Google OAuth), `scheduler.py` (sync with Google Tasks, token handling), `crud.py`, `models.py`, `database.py`, `devui.py` (read-only dev API under `/dev/api` for the local data viewer), `alembic/` (migrations), `tests/`.
-- `frontend/src/`: `api.ts` (calls to the API), `App.tsx`, `TaskTable.tsx`, `TaskRow.tsx`, `Header.tsx`, `LoginView.tsx`.
+- `frontend/src/`: `api.ts` (calls to the API), `App.tsx`, `TaskTable.tsx`, `TaskRow.tsx`, `Header.tsx`, `LoginView.tsx`, `LanguageSelect.tsx` (language selector).
+- `frontend/src/i18n/`: the UI dictionaries (`en.ts`, `it.ts`), the provider and the helpers.
 - `frontend/dev.html`: the local data viewer page, served at `/dev`; its code is in `frontend/src/dev/`, separate from the app.
 - `docs/maintainer-agent-workflow.md`: the rules of the maintainer's Claude sessions.
 
@@ -34,6 +38,7 @@ After changing the model in `backend/models.py`, add an Alembic migration in `ba
 - **Never commit or print secrets**: `backend/.env`, `client_secret*.json`, `credentials.json`, `token.json`, and any `*.db` file (`backend/app.db` holds the users' Google tokens in clear text). Only `backend/env.example` is tracked, with placeholders. Don't read real credential or database files.
 - Never log tokens, task titles or notes.
 - Google OAuth scopes stay as narrow as the features need. Widening them needs an issue agreed with the maintainer. See `SECURITY.md`.
+- `backend/tests/test_repository_language.py` fails when a tracked file contains Italian, outside its exceptions (`frontend/src/i18n/it.ts`, the test itself and `frontend/package-lock.json`). Fix the text; an exception is one line with a reason in that test.
 - Add tests with every change; the backend unit tests must pass on Python 3.11-3.13.
 - Update `README.md` when behaviour or configuration changes.
 
