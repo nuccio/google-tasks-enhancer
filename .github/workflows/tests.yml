@@ -1,8 +1,8 @@
 # Runs on every pull request, on every push to main, and on demand.
 # Required checks (see docs/maintainer-agent-workflow.md, "Repository
-# configuration"): the three "Backend tests" jobs and "Frontend build".
-# "Frontend lint" is a normal check that must pass; the owner adds it to the
-# required checks of the rulesets.
+# configuration"): all five jobs, i.e. the three "Backend tests" jobs,
+# "Frontend build" and "Frontend lint". "Frontend build" also runs the
+# frontend unit tests.
 #
 # Actions are pinned to full commit SHAs; the comment next to each one is the
 # version it corresponds to. Only GitHub-owned actions are used.
@@ -52,6 +52,8 @@ jobs:
           persist-credentials: false
       - name: Install
         run: npm ci
+      - name: Unit tests
+        run: npm test
       - name: Type-check and build
         run: npm run build
 
