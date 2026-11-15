@@ -108,7 +108,7 @@ cd frontend && npm run build        # type-check + build
 cd frontend && npm run lint
 ```
 
-The frontend lint is informational in CI: it is not a required check.
+CI runs these three checks, and all of them are required checks.
 
 ## Utilizzo
 
