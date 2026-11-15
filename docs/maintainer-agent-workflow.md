@@ -137,7 +137,8 @@ The coordinator, the design worker, the security check and the reviewer make or 
 
 - **Coordinator.** It checks its own model when it starts. If it is not Opus, it stops and tells the maintainer: a session cannot change its own model.
 - **Workers.** When it starts a worker, or a subagent that carries out the security check, the coordinator always passes the model explicitly, and does not rely on the preset or the app default.
-- **Check after the start.** The coordinator reads the model of the started session or subagent. The app silently ignores a requested model more expensive than the caller's own, which is also why the coordinator must run on Opus. If the model differs from the table, the coordinator stops that session before it does any work and applies the [Stop](#rules) rule.
+- **Check after the start.** The coordinator reads the model of the started session (`get_session`). The app silently ignores a requested model more expensive than the caller's own, which is also why the coordinator must run on Opus. If the model differs from the table, the coordinator stops that session before it does any work and applies the [Stop](#rules) rule.
+- **Subagents.** The model of the reviewer and of a security check subagent is fixed by the `model` passed when it is started, which is the record. The subagent states its own model at the top of its report. If the stated model differs from the table, or is missing, the coordinator discards the result and applies the [Stop](#rules) rule.
 - **Not covered.** Subagents a session uses only to search or read code, since they are not roles of the workflow. The reviewer subagent and a security check subagent are covered: they run on Opus.
 
 ### Waiting for CI
