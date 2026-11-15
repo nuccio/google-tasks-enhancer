@@ -110,6 +110,65 @@ cd frontend && npm run lint
 
 CI runs these three checks, and all of them are required checks.
 
+## Local data viewer (development only)
+
+A read-only page that shows what the local database holds: overview counts, the users, the tasks with filters and sorting, and every field of a single task. It edits nothing, starts no sync, calls no Google API and stores nothing: the filters live in the page URL. Google token values are never shown; the users list only says whether a user has tokens.
+
+> **Warning: keep it local.** With the flag on, anyone who reaches the API from the same machine can read the titles, notes and email addresses of every user, without logging in. Keep `DEV_UI_ENABLED` off on any machine that other people can reach, and while it is on do not combine it with:
+>
+> - a reverse proxy in front of the API;
+> - an SSH tunnel, ngrok or any other tunnel to the API or to Vite;
+> - `npm run dev -- --host` (Vite listening on the network);
+> - uvicorn's `--no-proxy-headers`;
+> - a custom `--forwarded-allow-ips` or `FORWARDED_ALLOW_IPS`.
+>
+> The start command above uses `--host 0.0.0.0`. The viewer refuses clients that are not on the same machine, but while the flag is on, `--host 127.0.0.1` is the safer choice.
+
+### Enable and open it
+
+1. Set the flag in `backend/.env` (it is `false` in `backend/env.example`; `true`, `1` and `yes` turn it on). The flag is read at every request.
+
+   ```dotenv
+   DEV_UI_ENABLED=true
+   ```
+
+2. Build the frontend, then start the API from the repository root:
+
+   ```bash
+   cd frontend && npm run build && cd ..
+   ```
+
+   ```bash
+   python3 -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
+   ```
+
+3. Open `http://localhost:8000/dev`.
+
+While working on the page itself, run `npm run dev` in `frontend/` with the API running, then open `http://localhost:5173/static/dev.html`. Vite proxies `/dev/api` to `http://localhost:8000`.
+
+### Endpoints
+
+All of them are `GET` requests under `/dev/api`:
+
+| Endpoint | Returns |
+| --- | --- |
+| `/dev/api/overview` | Counts: users, tasks, deleted, hidden, tasks without list or due date, last update, and counts by status, priority, project and hashtag (top 20). |
+| `/dev/api/users` | Every user with id, email, number of tasks and whether Google tokens are stored. |
+| `/dev/api/tasks` | `{total, items}`. Filters: `user_id`, `status`, `priority`, `project`, `hashtag`, `q` (text in title or notes), `include_deleted` (also shows deleted and hidden tasks). `sort` is one of `title`, `updated` (default), `due_date`, `priority`, `project_name`, `status`; `order` is `asc` or `desc` (default). `limit` goes from 1 to 500 (default 50), `offset` from 0. |
+| `/dev/api/tasks/{id}` | Every field of one task; 404 if it does not exist. |
+| `/dev/api/status` | Alembic revision of the database, whether the scheduler is running, and its jobs with their next run time. |
+
+### Responses
+
+- Flag off: `404` on `/dev` and on every `/dev/api/*` path.
+- Flag on, but the client is not on the same machine, or the `Host` header is not `localhost`, `127.0.0.1` or `[::1]` (with any port): `403`.
+- `/dev` answers `404` with a short message if the page has not been built yet (`npm run build` in `frontend/`).
+- Invalid query parameters: `422`.
+
+### Logs
+
+uvicorn's access log records every request URL, so the filter and search values typed in the viewer appear in the terminal. Add `--no-access-log` to the uvicorn command to turn the access log off.
+
 ## Utilizzo
 
 ### Autenticazione
