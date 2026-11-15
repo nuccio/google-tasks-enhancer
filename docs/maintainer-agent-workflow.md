@@ -91,7 +91,7 @@ Coordinators start from the coordinator preset. Workers start from the worker pr
 
 **Project memory.** It means `CLAUDE.md`, `README.md`, `docs/` and the local session notes. The local notes are outside the repository: they are corrected directly and the changes are listed in the final report.
 
-**Stop.** The coordinator stops on that sub-issue, labels it `needs-decision`, writes the options with a recommendation on the parent issue, and goes on with the sub-issues that do not depend on it. It stops for a decision the approved design does not cover: cloud costs, security or privacy, a new dependency or external service, a breaking change, an irreversible operation (including a database migration that drops or rewrites user data), a communication outside the repository, unclear acceptance criteria, or more than the agreed number of workers, hours or attempts. It also stops when the reviewer and the coordinator disagree, when the retry limit is used up, or when a worker reports that it [could not wait for the checks](#waiting-for-ci). When in doubt, it stops.
+**Stop.** The coordinator stops on that sub-issue, labels it `needs-decision`, writes the options with a recommendation on the parent issue, and goes on with the sub-issues that do not depend on it. It stops for a decision the approved design does not cover: cloud costs, security or privacy, a new dependency or external service, a breaking change, an irreversible operation (including a database migration that drops or rewrites user data), a communication outside the repository, unclear acceptance criteria, or more than the agreed number of workers, hours or attempts. It also stops when the reviewer and the coordinator disagree, when the retry limit is used up, or when a worker reports that it [could not wait for the checks](#waiting-for-ci). It also stops when the model a role requires is not available, or when a started session is not on the model of the [table](#session-models). There is no fallback to another model. When in doubt, it stops.
 
 **Final report.** It contains the important decisions taken, what the maintainer should verify by hand and how, departures from the design, open risks, and every protected area or agents' rule touched. No code details.
 
@@ -118,6 +118,26 @@ When it opens the final PR to `main`, every issue it closes must be in scope, re
 ```bash
 gh pr view <N> --json closingIssuesReferences
 ```
+
+### Session models
+
+Each role runs on a fixed model:
+
+| Session | Model |
+|---|---|
+| Coordinator | Opus |
+| Worker for the design sub-issue (`[#N design] …`) | Opus |
+| Every other worker (`impl`, `security`, `docs`, `memory`, and the PR that merges `main` into the issue branch) | Sonnet |
+| Reviewer of sub-issue PRs and of the security check | Opus |
+
+"Opus" and "Sonnet" mean the latest version of that family that the app offers.
+
+The coordinator, the design worker and the reviewer make or check the decisions the maintainer relies on. The other workers carry out an approved design.
+
+- **Coordinator.** It checks its own model when it starts. If it is not Opus, it stops and tells the maintainer: a session cannot change its own model.
+- **Workers.** When it starts a worker, the coordinator always passes the model explicitly, and does not rely on the preset or the app default.
+- **Check after the start.** The coordinator reads the model of the started session. The app silently ignores a requested model more expensive than the caller's own, which is also why the coordinator must run on Opus. If the model differs from the table, the coordinator stops that worker before it does any work and applies the [Stop](#rules) rule.
+- **Not covered.** Subagents a session uses only to search or read code.
 
 ### Waiting for CI
 
@@ -148,7 +168,7 @@ It merges with `gh pr merge <N> --squash` (`--merge` only for the PR that brings
 
 ### Reviewer
 
-A fresh subagent or session started by the coordinator, given the issue and the diff; not the worker or anything the worker started. Its verdict goes in a PR comment, which contains:
+A fresh subagent or session started by the coordinator, given the issue and the diff; not the worker or anything the worker started. It runs on Opus (see [Session models](#session-models)), as a subagent started with the `opus` model or a session started with an explicit model. Its verdict goes in a PR comment, which contains:
 
 - `Reviewer verdict: PASS` or `Reviewer verdict: FAIL`;
 - the SHA of the reviewed commit;
@@ -207,7 +227,7 @@ To set up the account of a role:
 2. Create a classic personal access token for that account: scope `public_repo` for the coordinator, scope `repo` for the worker, while the repository is public. Fine-grained tokens are not used: a fine-grained token is issued for one resource owner, and a personal account can only select itself, so it cannot write to a repository of another user. What limits these tokens to this repository is that the accounts are collaborators only here. Neither token has the `workflow` scope, so neither can push to `.github/workflows/`; the maintainer grants it temporarily for a PR that needs it and removes it afterwards.
 3. Create a dedicated SSH key for signing and add it to the account as a **Signing Key** (see [Signed commits](../CONTRIBUTING.md#signed-commits)). Use the account's verified commit email, the `<id>+<account>@users.noreply.github.com` address.
 4. Keep a separate git config file for the account, outside the repository, with `user.name`, `user.email`, `gpg.format ssh`, `user.signingkey`, `commit.gpgsign true` and `gpg.ssh.allowedSignersFile`.
-5. Save a session preset whose environment variables are `GH_TOKEN` (the token), `GITHUB_PERSONAL_ACCESS_TOKEN` (the same token), `GIT_CONFIG_GLOBAL` (the path of the git config file), `AGENT_ROLE` and `AGENT_GH_LOGIN`.
+5. Save a session preset whose environment variables are `GH_TOKEN` (the token), `GITHUB_PERSONAL_ACCESS_TOKEN` (the same token), `GIT_CONFIG_GLOBAL` (the path of the git config file), `AGENT_ROLE` and `AGENT_GH_LOGIN`. The preset also sets the model of the [session](#session-models): Opus for the coordinator preset, Sonnet for the worker preset. The model the coordinator passes when it starts a worker overrides the preset, which is how the design worker runs on Opus.
 
 Never commit the token, the keys or the config file.
 
