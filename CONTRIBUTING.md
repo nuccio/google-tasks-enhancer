@@ -1,6 +1,6 @@
 # Contributing
 
-This page covers how a change gets to `main`. The project's new text is written in English: code, comments, commit messages, issues and pull requests.
+This page covers how a change gets to `main`. The repository is English only: code, comments, documentation, commit messages, issues and pull requests. The only exception is the UI translations in `frontend/src/i18n/`.
 
 ## Before you start
 
@@ -30,7 +30,7 @@ For the frontend, run `npm ci` in `frontend/`. The credentials needed to run the
 ## Making a change
 
 1. Create a branch from `main`, one per issue, e.g. `fix/sync-keeps-custom-fields` or `issue-14-pagination`.
-2. Add or update tests with the change. The backend unit tests must pass on Python 3.11-3.13, and `npm run build` and `npm run lint` must pass in `frontend/`.
+2. Add or update tests with the change. The backend unit tests must pass on Python 3.11-3.13, and `npm test`, `npm run build` and `npm run lint` must pass in `frontend/`. New UI text goes into the dictionaries in `frontend/src/i18n/`, in both languages.
 3. Update the docs (`README.md`) when behaviour or configuration changes.
 4. If you change the database model, add an Alembic migration. If you change dependencies, update the lock file (`frontend/package-lock.json`).
 5. Open a pull request against `main`. Put `Fixes #N` in the description, so the issue is closed when the pull request is merged.
