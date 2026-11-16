@@ -7,6 +7,7 @@
       "Bash(gh api 'repos/{owner}/{repo}/issues/*/events'*)",
       "Bash(gh api --paginate 'repos/{owner}/{repo}/issues/*/sub_issues'*)",
       "Bash(gh api 'repos/{owner}/{repo}/rulesets'*)",
+      "Bash(gh api 'repos/{owner}/{repo}/rulesets/*')",
       "Bash(gh issue view *)",
       "Bash(gh issue list *)",
       "Bash(gh pr view *)",
@@ -59,7 +60,12 @@
       "Bash(git push * --force*)",
       "Bash(git push * -f*)",
       "Bash(git push * refs/heads/main*)",
-      "mcp__claude-in-chrome__*"
+      "mcp__claude-in-chrome__*",
+      "Bash(git push *:main*)",
+      "Bash(git push *:issue/*)",
+      "Bash(git push * +*)",
+      "Bash(git push * --delete*)",
+      "Bash(git push * -d*)"
     ],
     "ask": [
       "Bash(gh release *)",

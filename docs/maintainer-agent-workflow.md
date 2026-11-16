@@ -46,7 +46,8 @@ flowchart TD
     Y -- no --> J
     Z --> J[Final PR to main and final report]
     J --> K{Maintainer approves and merges?}
-    K -- no --> F
+    K -- "no, full path" --> F
+    K -- "no, small path" --> S1
     K -- yes --> L[Maintainer verifies the app on main]
     X["Hard stop or used-up limit<br/>at any step"] --> N["Comment on the parent issue,<br/>in-app notification, wait for the maintainer"]
 ```
@@ -160,7 +161,7 @@ gh api --paginate 'repos/{owner}/{repo}/issues/<parent>/sub_issues' --jq '.[].nu
 ```
 
 ```bash
-gh pr view <N> --json title,baseRefName,author
+gh pr view <N> --json title,baseRefName,headRefName,author
 ```
 
 When it opens the final PR to `main`, every issue it closes must be in scope, read from the PR and not from its body text:
@@ -185,7 +186,7 @@ Each session runs on a fixed model:
 | Worker for the design sub-issue (`[#N design] …`) | Opus |
 | Security check (`[#N security] …`), whether a worker session or a reviewer subagent carries it out | Opus |
 | Every other worker (`impl`, including the worker of the small-issue path, `docs`, `memory`, and the PR that merges `main` into the issue branch) | Sonnet |
-| Reviewer of sub-issue PRs | Opus |
+| Reviewer of sub-issue PRs and of the PR of the small-issue path | Opus |
 
 "Opus" and "Sonnet" mean the latest version of that family that the app offers.
 
@@ -413,9 +414,9 @@ Notes:
 
 ### Limits of the permission entries
 
-The `deny`, `ask` and `allow` entries of `.claude/settings.json` are patterns on command arguments, and they cannot reliably stop every write call. The guard that holds is the token a session uses and the rulesets. `Read` rules do not apply to shell commands. `ask` and `deny` take precedence over `allow`.
+The `deny`, `ask` and `allow` entries of `.claude/settings.json` are patterns on command arguments, and they cannot reliably stop every write call. The guard that holds is the token a session uses and the rulesets. `Read` rules do not apply to shell commands. `ask` and `deny` take precedence over `allow`. Combined short flags (for example `-iXPATCH`) get past the `ask` patterns on `gh api`, so the token stays the guard there.
 
-- **`allow`.** It covers the commands this workflow prescribes, so that the routine steps never depend on the judgement of the Auto mode: the read calls of `gh api` that this document names, one by one (never `gh api *`), `gh issue view|list`, `gh pr view|list|diff|checks`, `git status|log|diff|fetch`, the work on branches (`git switch`, `git checkout`, `git add`, `git commit`, `git merge`, `git push origin issue/*`), the GitHub steps of the roles (`gh issue create|edit|comment|close`, `gh pr create|comment|review|merge`), and the tests and builds of [CLAUDE.md](../CLAUDE.md). The `--admin` entries and the entries on `main` and on force pushes stay under `deny`.
+- **`allow`.** It covers the commands this workflow prescribes, so that the routine steps never depend on the judgement of the Auto mode: the read calls of `gh api` that this document names, one by one (never `gh api *`), `gh issue view|list`, `gh pr view|list|diff|checks`, `git status|log|diff|fetch`, the work on branches (`git switch`, `git checkout`, `git add`, `git commit`, `git merge`, `git push origin issue/*`), the GitHub steps of the roles (`gh issue create|edit|comment|close`, `gh pr create|comment|review|merge`), and the tests and builds of [CLAUDE.md](../CLAUDE.md). The `--admin` entries and the entries on `main` and on force pushes stay under `deny`, and `deny` also covers branch deletions (`--delete`, `-d`), `+` refspecs and `src:dst` refspecs, so that the `git push origin issue/*` entry cannot run them; the rulesets stay the guard for `main`.
 - **`ask`.** The write forms of `gh api` (`-X`, `--method`, `-f`, `-F`, `--field`, `--raw-field`, `--input`, `graphql`) stay under `ask`, so that read-only checks on rulesets and branches work and a write call asks.
 - **`deny`.** Also the Claude in Chrome tools (`mcp__claude-in-chrome__*`).
 - **Who they apply to.** Every session in the repository, the maintainer's own and those without a role included, and they cannot tell a PR's base branch apart. A `gh pr merge` by a worker cannot reach `main` and cannot merge into an issue branch without the approval of the coordinator, because of the token and the rulesets, not because of these entries.
