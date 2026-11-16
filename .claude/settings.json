@@ -30,7 +30,9 @@
       "Bash(git push * -d*)",
       "Bash(gh pr merge *--auto*)",
       "Bash(gh pr merge *--delete-branch*)",
-      "Bash(gh pr merge * -d*)"
+      "Bash(gh pr merge * -d*)",
+      "Bash(git push --delete*)",
+      "Bash(git push -d*)"
     ],
     "ask": [
       "Bash(gh release *)",
