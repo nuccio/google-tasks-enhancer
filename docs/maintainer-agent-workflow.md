@@ -130,7 +130,8 @@ Hard stops:
 - credentials;
 - a departure from what the decision section of the approved design covers (a PR touching a first-group [protected path](#protected-paths) that the approved design does not declare is one, a new dependency included, since dependency files are first-group paths);
 - a problem found by the security check;
-- a used-up [retry limit](#retry-limit).
+- a used-up [retry limit](#retry-limit);
+- anything else the final PR cannot undo or that has effects outside the repository.
 
 At a hard stop the coordinator labels the sub-issue `needs-decision` (the parent issue on the small-issue path), writes the options with a recommendation on the parent issue, sends the in-app notification below, and goes on with the sub-issues that do not depend on it. It records the wait under "Interruptions" of the [final report](#rules).
 
@@ -296,7 +297,7 @@ To set up the account of a role:
    - `SSH_AUTH_SOCK=/dev/null` (the app ignores an empty value, so the preset points the variable at a file that is not a socket);
    - `GIT_SSH_COMMAND=/usr/bin/false`, so that git cannot use SSH transport at all and a forgotten SSH remote fails visibly. Nothing in this workflow needs SSH transport.
 
-   The preset also sets the model of the [session](#session-models): Opus for the coordinator preset, Sonnet for the worker preset. The model the coordinator passes when it starts a worker overrides the preset, which is how the design worker and a security check worker run on Opus. The **permission mode** of both presets is **Auto**: the app judges every command that is not under `deny` or `ask`, and blocks the risky ones (destructive commands, reading credentials, sending data outside) instead of running them. The repository has no `allow` entries, for the reason given in [Limits of the permission entries](#limits-of-the-permission-entries). See [Limits of the permission entries](#limits-of-the-permission-entries).
+   The preset also sets the model of the [session](#session-models): Opus for the coordinator preset, Sonnet for the worker preset. The model the coordinator passes when it starts a worker overrides the preset, which is how the design worker and a security check worker run on Opus. The **permission mode** of both presets is **Auto**: the app judges every command that is not under `deny` or `ask`, and is designed to block the risky ones (destructive commands, reading credentials, sending data outside) instead of running them. The repository has no `allow` entries, for the reason given in [Limits of the permission entries](#limits-of-the-permission-entries).
 
 Never commit the token, the keys or the config file.
 
@@ -416,9 +417,10 @@ Notes:
 ### Limits of the permission entries
 
 The `deny` and `ask` entries of `.claude/settings.json` are patterns on command text, and they cannot reliably stop every write call: combined short flags, for example, are not matched by them. The guard that holds is the token a session uses and the rulesets. `Read` rules do not apply to shell commands.
-- **No `allow` entries.** A command matched by an `allow` entry runs without the judgement of the Auto mode, and a pattern on command text cannot be narrowed to the safe forms of a command. So the repository has none: every command that is not under `deny` or `ask` goes to the Auto mode, which lets the ordinary steps of the workflow run and treats a deletion or a force push as risky.
+
+- **No `allow` entries.** A command matched by an `allow` entry runs without the judgement of the Auto mode, and a pattern on command text cannot be narrowed to the safe forms of a command. So the repository has none: every command that is not under `deny` or `ask` goes to the Auto mode, which is designed to let the ordinary steps of the workflow run and to treat a deletion or a force push as risky.
 - **`ask`.** The write forms of `gh api` (`-X`, `--method`, `-f`, `-F`, `--field`, `--raw-field`, `--input`, `graphql`), so that read-only checks on rulesets and branches work and a write call asks.
-- **`deny`.** The `--admin` entries and the entries on `main` and on force pushes; any refspec with a colon, `+` refspecs, and `--delete` or `-d` written as separate options; `gh pr merge` with `--auto`, `--delete-branch` or `-d`; and the Claude in Chrome tools (`mcp__claude-in-chrome__*`). Where a pattern cannot match, the guard for `issue/<N>/base` is the Auto mode, the written Never rule and the token, and the rulesets stay the guard for `main`.
+- **`deny`.** The `--admin` entries, the Claude in Chrome tools (`mcp__claude-in-chrome__*`), `gh pr merge` with `--auto`, `--delete-branch` or `-d`, and entries on `git push` for the usual ways of writing a push to `main`, a force push, a deletion and a refspec with a colon. These entries are a net for the common forms, not a complete list: a command written another way goes to the Auto mode like any other. What protects `issue/<N>/base` from a deletion is the Auto mode and the written Never rule: the role tokens can delete it, and `Issue branches` does not restrict deletions. The rulesets stay the guard for `main`.
 - **Who they apply to.** The entries apply to every session in the repository, the maintainer's own and those without a role included, and they cannot tell a PR's base branch apart. A `gh pr merge` by a worker cannot reach `main` and cannot merge into an issue branch without the approval of the coordinator, because of the token and the rulesets, not because of the entries.
 - **Permission mode.** The presets of both roles use Auto, which judges every command that is not under `deny` or `ask`. An action it blocks that the workflow needs shows up as an interruption in the [final report](#rules), and the maintainer decides what to do about it. The `.claude/settings.json` of the repository takes effect for a session only once it is on `main`.
 
