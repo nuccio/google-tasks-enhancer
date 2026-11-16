@@ -9,21 +9,28 @@ Google Tasks Enhancer extends Google Tasks. It syncs your tasks from Google Task
 *   **Google OAuth 2.0 sign-in:** Supports signing in with a Google account for several users (web application flow).
 *   **SQLite database:** Uses SQLite for persistence, which is easy to set up and fine for development.
 *   **REST API:** Exposes endpoints to manage the tasks.
-*   **Automatic sync:** Syncs all registered users at start-up and then every 5 minutes.
+*   **Automatic sync:** Syncs all registered users at start-up and then every 5 minutes, and syncs a user when they sign in.
 *   **UI languages:** English (default) and Italian (see [UI languages](#ui-languages)).
 
 ### Data sync logic
 
-The backend uses a "smart" sync to keep the local database up to date with Google Tasks:
-1.  **Full fetch:** When a user signs in, or when the scheduler starts, the app fetches **all the tasks** (completed ones included) of the user from the Google Tasks API.
-2.  **Incremental update:** Each task received from the API is compared with the version in the local database. If the task already exists, its fields are updated. If it is a new task, it is added.
+The backend keeps the local database in step with Google Tasks. A sync runs for every user at start-up, every 5 minutes after that, when a user signs in, and when you call `POST /tasks/sync`. Each sync downloads every task again; it does not ask Google only for what changed.
 
-#### Why completed tasks need special handling
+1.  **Every task is read.** The app reads every page of the task lists and of the tasks in each list, and asks Google for completed, hidden and deleted tasks too. Tasks completed in the Google Tasks apps are therefore included, and so are very old ones.
+2.  **Google owns its fields.** The title, status, completion time, due date, notes, position, parent and the other fields that Google sends follow Google on every sync: a change made on Google replaces the local value, and a field that Google no longer sends (for example the notes you removed, or the completion time of a task you reopened) is emptied locally. The hashtags are taken from the title, so they follow it too.
+3.  **The app owns its fields.** `priority`, `project_name` and `estimated_time_minutes` exist only in this app. A new task starts with the priority `medium` and no project or estimated time, and a sync never changes these three fields on a task that already exists.
+4.  **Tasks that disappear from Google are kept, hidden.** A task deleted on Google, or one that no list returns any more (also when its whole list was deleted), is not removed from the database: it is marked as deleted and keeps its custom fields. The app no longer shows it. If Google returns it again, for example after an undo, the next sync shows it again with its custom fields. A task that Google returns already deleted and that the app has never stored is not stored.
+5.  **A sync is all or nothing.** The whole sync is one database transaction. If any call to Google or any write fails, your tasks in the local database stay as they were before the sync. One thing is kept even then: when the Google access token had expired, the refreshed token is saved before the sync reads Google. A failed sync reports only the type of the error (and the HTTP status, for an error from Google), never task data; `POST /tasks/sync` answers `500` with that message.
+6.  **No task lists, no change.** If Google returns no task list at all, the sync ends without changing anything, so an odd empty reply cannot hide all your tasks.
 
-We observed that, in some cases, the Google Tasks API does **not always return the tasks that were marked as "completed"** in the Google Tasks interface, even when the request explicitly asks for completed tasks (`showCompleted=True`). This creates a gap between the state the user sees and the data the API returns.
+#### First sync after upgrading
 
-To keep the local data consistent, we use this strategy:
-If a task is in our local database but is **not returned** by the Google Tasks API during a sync, the app assumes the user completed it. The task is then **automatically set to the "completed" status** in the local database, with a completion timestamp. This way the app reflects the right state of the tasks even when the Google API behaves unexpectedly or filters tasks implicitly.
+An earlier version of the sync guessed that a task Google did not return had been completed, and it also reset the custom fields of every task on each sync. There is no migration and no manual step: the first sync of the new version corrects what Google can still tell.
+
+*   Tasks that the old sync wrongly showed as completed get their real status back.
+*   Tasks deleted on Google disappear from the app.
+*   Tasks completed long ago, in the Google Tasks apps, now appear among the completed ones. The completed section can grow by hundreds of tasks.
+*   Custom fields that past syncs already reset to their defaults cannot be recovered.
 
 ## Architecture
 
@@ -196,7 +203,7 @@ All of them are `GET` requests under `/dev/api`:
 | --- | --- |
 | `/dev/api/overview` | Counts: users, tasks, deleted, hidden, tasks without list or due date, last update, and counts by status, priority, project and hashtag (top 20). |
 | `/dev/api/users` | Every user with id, email, number of tasks and whether Google tokens are stored. |
-| `/dev/api/tasks` | `{total, items}`. Filters: `user_id`, `status`, `priority`, `project`, `hashtag`, `q` (text in title or notes), `include_deleted` (also shows deleted and hidden tasks). `sort` is one of `title`, `updated` (default), `due_date`, `priority`, `project_name`, `status`; `order` is `asc` or `desc` (default). `limit` goes from 1 to 500 (default 50), `offset` from 0. |
+| `/dev/api/tasks` | `{total, items}`. Filters: `user_id`, `status`, `priority`, `project`, `hashtag`, `q` (text in title or notes), `include_deleted` (also shows deleted tasks; hidden tasks, which are completed ones, are always shown). `sort` is one of `title`, `updated` (default), `due_date`, `priority`, `project_name`, `status`; `order` is `asc` or `desc` (default). `limit` goes from 1 to 500 (default 50), `offset` from 0. |
 | `/dev/api/tasks/{id}` | Every field of one task; 404 if it does not exist. |
 | `/dev/api/status` | Alembic revision of the database, whether the scheduler is running, and its jobs with their next run time. |
 
@@ -225,7 +232,7 @@ uvicorn's access log records every request URL, so the filter and search values 
 *   **`GET /auth/login/google`**: Starts the Google OAuth 2.0 sign-in flow.
 *   **`GET /auth/google`**: Callback URL for the Google sign-in.
 *   **`GET /auth/me`**: Returns the email of the signed-in user (requires authentication).
-*   **`GET /tasks/`**: Returns all the synced tasks of the signed-in user.
+*   **`GET /tasks/`**: Returns every task of the signed-in user that is not deleted, with no limit on the number of rows.
 *   **`POST /tasks/sync`**: Forces a manual sync of the tasks of the signed-in user.
 *   **`PATCH /tasks/{id}`**: Updates the fields of a task. `priority` accepts `low`, `medium`, `high` or `null`; any other value is rejected with a `422` error. A change of `status` is also sent to Google Tasks.
 *   **`GET /dev`** and **`GET /dev/api/*`**: local read-only data viewer, off by default and for development only (see [Local data viewer](#local-data-viewer-development-only)).

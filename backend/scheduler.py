@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request as GoogleAuthRequest # Renamed to avoid a name clash
 from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
 from apscheduler.schedulers.background import BackgroundScheduler
 from dotenv import load_dotenv
 
@@ -46,6 +47,104 @@ def get_google_tasks_service(db: Session, user: models.User):
 def extract_hashtags(title: str) -> list[str]:
     return re.findall(r'#(\w+)', title)
 
+# Who owns which column of a task row (design #97, section 3).
+# Google-owned columns, written on every sync: the model column mapped to the field name
+# in Google's task resource. This is the only way Google data reaches a task row.
+GOOGLE_FIELDS = {
+    "kind": "kind",
+    "etag": "etag",
+    "title": "title",
+    "updated": "updated",
+    "selfLink": "selfLink",
+    "parent": "parent",
+    "position": "position",
+    "notes": "notes",
+    "status": "status",
+    "due_date": "due",  # Google's 'due' is stored as 'due_date'
+    "completed": "completed",
+    "deleted": "deleted",
+    "hidden": "hidden",
+    "webViewLink": "webViewLink",
+    "assignmentInfo": "assignmentInfo",
+    "links": "links",
+}
+# Google leaves optional fields out of its reply; for these a missing field means False
+GOOGLE_BOOLEAN_FIELDS = ("deleted", "hidden")
+# Columns set by the sync itself: the list the task was found in
+SYNC_FIELDS = ("tasklist_id",)
+# Columns derived from another column on every sync
+DERIVED_FIELDS = ("hashtags",)
+# Columns owned by the user: written only when the sync creates the task
+CUSTOM_FIELDS = ("priority", "project_name", "estimated_time_minutes")
+
+TASKS_PAGE_SIZE = 100  # Maximum page size of tasks.list
+TASKLISTS_PAGE_SIZE = 1000  # Maximum page size of tasklists.list
+
+def google_task_values(google_task: dict) -> dict:
+    """
+    The values of the Google-owned columns for a task as Google returned it.
+    A field Google left out becomes None ('deleted' and 'hidden': False); fields
+    the model does not know are ignored.
+    """
+    values = {}
+    for column, google_key in GOOGLE_FIELDS.items():
+        value = google_task.get(google_key)
+        if column in GOOGLE_BOOLEAN_FIELDS:
+            value = bool(value)
+        values[column] = value
+    return values
+
+def apply_google_task(db: Session, user_id: int, tasklist_id: str, google_task: dict,
+                      existing_tasks: dict):
+    """
+    Applies one task as Google returned it to the local rows, without committing.
+    existing_tasks maps the task ID to the stored row of the user and is kept up to date.
+    Returns the row, or None when nothing was stored (the task has no ID, or it arrived
+    already deleted and has no local row).
+    """
+    task_id = google_task.get('id')
+    if not task_id:
+        return None
+
+    values = google_task_values(google_task)
+    values['tasklist_id'] = tasklist_id
+    values['hashtags'] = extract_hashtags(values['title'] or '')
+
+    db_task = existing_tasks.get(task_id)
+    if db_task is None:
+        if values['deleted']:
+            return None
+        # The custom fields get their defaults only when the task is created
+        db_task = models.Task(
+            id=task_id,
+            owner_id=user_id,
+            priority=models.DEFAULT_PRIORITY,
+            project_name=None,
+            estimated_time_minutes=None,
+            **values,
+        )
+        existing_tasks[task_id] = db_task
+    else:
+        for column, value in values.items():
+            setattr(db_task, column, value)
+    db.add(db_task)
+    return db_task
+
+def _list_all_pages(request_page):
+    """Yields the items of every page of a Google list call; request_page(page_token) builds the request."""
+    page_token = None
+    seen_tokens = set()
+    while True:
+        response = request_page(page_token).execute()
+        yield from response.get('items', [])
+        page_token = response.get('nextPageToken')
+        if not page_token:
+            return
+        if page_token in seen_tokens:
+            # Google would send the same page forever: stop, the sync is rolled back
+            raise RuntimeError("Google returned the same page token twice")
+        seen_tokens.add(page_token)
+
 def sync_tasks_for_user(user_id: int):
     db: Session = SessionLocal()
     try:
@@ -56,64 +155,65 @@ def sync_tasks_for_user(user_id: int):
 
         service = get_google_tasks_service(db, user) # Pass db and user
 
-        # TODO: Implement "smart polling" here.
-        # For now all tasks are downloaded (to improve with updatedMin)
-        results = service.tasklists().list().execute()
-        items = results.get('items', [])
-        print(f"DEBUG: Found {len(items)} task lists.")
+        # TODO: Implement "smart polling" here (updatedMin, issue #89).
+        # For now every task is downloaded on every sync.
+        tasklists = list(_list_all_pages(
+            lambda token: service.tasklists().list(maxResults=TASKLISTS_PAGE_SIZE, pageToken=token)
+        ))
+        print(f"DEBUG: Found {len(tasklists)} task lists for user {user_id}.")
+        if not tasklists:
+            # Most likely an anomaly: change nothing rather than hide every task of the user
+            print(f"DEBUG: No task lists for user {user_id}, nothing synced.")
+            return
 
-        for tasklist in items:
-            print(f"DEBUG: Syncing tasks for list: {tasklist['title']}")
-            tasks_results = service.tasks().list(tasklist=tasklist['id'], showCompleted=True).execute()
-            tasks = tasks_results.get('items', [])
-            print(f"DEBUG: Found {len(tasks)} tasks in this list.")
+        # Every row of the user, deleted ones included, with no row cap
+        existing_tasks = {t.id: t for t in crud.get_user_tasks(db, user_id, include_deleted=True)}
+        returned_ids = set()
 
-            for task_data in tasks:
-                print(f"DEBUG: Processing task: {task_data.get('title', 'No Title')}")
-                # Keep the task list ID for later update operations
-                task_data['tasklist_id'] = tasklist['id']
-                
-                # Extract the hashtags from the title
-                task_data['hashtags'] = extract_hashtags(task_data.get('title', ''))
+        for tasklist in tasklists:
+            tasklist_id = tasklist['id']
+            count = 0
+            for google_task in _list_all_pages(
+                lambda token, tasklist_id=tasklist_id: service.tasks().list(
+                    tasklist=tasklist_id,
+                    maxResults=TASKS_PAGE_SIZE,
+                    showCompleted=True,
+                    showHidden=True,
+                    showDeleted=True,
+                    pageToken=token,
+                )
+            ):
+                count += 1
+                if google_task.get('id'):
+                    returned_ids.add(google_task['id'])
+                apply_google_task(db, user_id, tasklist_id, google_task, existing_tasks)
+            print(f"DEBUG: List {tasklist_id}: {count} tasks returned.")
 
-                # Defaults for the custom fields when they are missing
-                if 'priority' not in task_data: task_data['priority'] = models.DEFAULT_PRIORITY
-                if 'project_name' not in task_data: task_data['project_name'] = None
-                if 'estimated_time_minutes' not in task_data: task_data['estimated_time_minutes'] = None
+        # A task that no list returned is gone on Google: mark it deleted and keep the rest.
+        # This runs only after every list was read completely.
+        gone = [t for task_id, t in existing_tasks.items() if task_id not in returned_ids and not t.deleted]
+        for db_task in gone:
+            db_task.deleted = True
+            db.add(db_task)
+        if gone:
+            print(f"DEBUG: {len(gone)} stored tasks not returned by Google, marked deleted.")
 
-                # Map Google Tasks' 'due' to 'due_date', the name used by the DB model
-                if 'due' in task_data:
-                    task_data['due_date'] = task_data.pop('due')
-                else:
-                    task_data['due_date'] = None # Always present, even if None
-
-                crud.create_or_update_task(db, task_data, user_id)
-        
-        # Mark as completed the local tasks that Google no longer returns
-        local_task_ids = {t.id for t in crud.get_tasks(db, user_id)}
-        google_task_ids = {t['id'] for t in tasks}
-        
-        tasks_to_mark_completed_locally = local_task_ids - google_task_ids
-        
-        if tasks_to_mark_completed_locally:
-            print(f"DEBUG: Found {len(tasks_to_mark_completed_locally)} tasks in DB not returned by Google. Marking as completed.")
-            for task_id in tasks_to_mark_completed_locally:
-                db_task = crud.get_task(db, task_id, user_id)
-                if db_task and db_task.status != "completed":
-                    db_task.status = "completed"
-                    db_task.completed = datetime.now(timezone.utc).isoformat() + 'Z' # ISO 8601 UTC timestamp
-                    db.add(db_task)
-                    db.commit()
-                    db.refresh(db_task)
-                    print(f"DEBUG: Task {task_id} marked completed locally.")
-
-        print(f"Synced tasks for user {user.id}")
+        db.commit() # One transaction per sync: all or nothing
+        print(f"Synced tasks for user {user_id}")
 
     except Exception as e:
-        # Catch the error and re-raise it with a more specific message
-        error_message = f"Google Tasks API error: {e}"
-        print(f"Error syncing tasks for user {user.id}: {error_message}")
-        raise ValueError(error_message) # Re-raised as ValueError, which the endpoints turn into an HTTP error
+        db.rollback()
+        # The message holds the exception type (and the HTTP status of a Google error) only:
+        # the exception text can carry SQL parameters or a response body with task titles and notes.
+        error_message = f"Google Tasks sync failed ({type(e).__name__})"
+        if isinstance(e, HttpError):
+            status = getattr(getattr(e, "resp", None), "status", None)
+            if isinstance(status, int) and not isinstance(status, bool):
+                error_message = f"Google Tasks sync failed ({type(e).__name__}, HTTP status {status})"
+        print(f"Error syncing tasks for user {user_id}: {error_message}")
+        # Re-raised as ValueError, which the endpoints turn into an HTTP error.
+        # "from None" keeps the original exception out of the chained traceback.
+        raise ValueError(error_message) from None
     finally:
         db.close()
 
