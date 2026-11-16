@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request as GoogleAuthRequest # Renamed to avoid a name clash
 from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
 from apscheduler.schedulers.background import BackgroundScheduler
 from dotenv import load_dotenv
 
@@ -202,10 +203,17 @@ def sync_tasks_for_user(user_id: int):
 
     except Exception as e:
         db.rollback()
-        # Catch the error and re-raise it with a more specific message
-        error_message = f"Google Tasks API error: {e}"
+        # The message holds the exception type (and the HTTP status of a Google error) only:
+        # the exception text can carry SQL parameters or a response body with task titles and notes.
+        error_message = f"Google Tasks sync failed ({type(e).__name__})"
+        if isinstance(e, HttpError):
+            status = getattr(e.resp, "status", None)
+            if status is not None:
+                error_message = f"Google Tasks sync failed ({type(e).__name__}, HTTP status {status})"
         print(f"Error syncing tasks for user {user_id}: {error_message}")
-        raise ValueError(error_message) # Re-raised as ValueError, which the endpoints turn into an HTTP error
+        # Re-raised as ValueError, which the endpoints turn into an HTTP error.
+        # "from None" keeps the original exception out of the chained traceback.
+        raise ValueError(error_message) from None
     finally:
         db.close()
 
