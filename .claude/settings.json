@@ -19,7 +19,20 @@
       "Read(**/client_secret*.json)",
       "Read(**/credentials.json)",
       "Read(**/.env)",
-      "Read(**/*.db)"
+      "Read(**/*.db)",
+      "Bash(git push * --force*)",
+      "Bash(git push * -f*)",
+      "Bash(git push * refs/heads/main*)",
+      "mcp__claude-in-chrome__*",
+      "Bash(git push *:**)",
+      "Bash(git push * +*)",
+      "Bash(git push * --delete*)",
+      "Bash(git push * -d*)",
+      "Bash(gh pr merge *--auto*)",
+      "Bash(gh pr merge *--delete-branch*)",
+      "Bash(gh pr merge * -d*)",
+      "Bash(git push --delete*)",
+      "Bash(git push -d*)"
     ],
     "ask": [
       "Bash(gh release *)",
