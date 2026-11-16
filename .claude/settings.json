@@ -60,7 +60,7 @@
       "Bash(git push * -f*)",
       "Bash(git push * refs/heads/main*)",
       "mcp__claude-in-chrome__*",
-      "Bash(git push *:*)",
+      "Bash(git push *:**)",
       "Bash(git push * +*)",
       "Bash(git push * --delete*)",
       "Bash(git push * -d*)"
