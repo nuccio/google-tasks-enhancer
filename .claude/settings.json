@@ -23,7 +23,6 @@
       "Bash(git add *)",
       "Bash(git commit *)",
       "Bash(git merge *)",
-      "Bash(git push origin issue/*)",
       "Bash(gh issue create *)",
       "Bash(gh issue edit *)",
       "Bash(gh issue comment *)",
@@ -61,8 +60,7 @@
       "Bash(git push * -f*)",
       "Bash(git push * refs/heads/main*)",
       "mcp__claude-in-chrome__*",
-      "Bash(git push *:main*)",
-      "Bash(git push *:issue/*)",
+      "Bash(git push *:*)",
       "Bash(git push * +*)",
       "Bash(git push * --delete*)",
       "Bash(git push * -d*)"
