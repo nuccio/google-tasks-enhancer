@@ -132,12 +132,17 @@ def apply_google_task(db: Session, user_id: int, tasklist_id: str, google_task: 
 def _list_all_pages(request_page):
     """Yields the items of every page of a Google list call; request_page(page_token) builds the request."""
     page_token = None
+    seen_tokens = set()
     while True:
         response = request_page(page_token).execute()
         yield from response.get('items', [])
         page_token = response.get('nextPageToken')
         if not page_token:
             return
+        if page_token in seen_tokens:
+            # Google would send the same page forever: stop, the sync is rolled back
+            raise RuntimeError("Google returned the same page token twice")
+        seen_tokens.add(page_token)
 
 def sync_tasks_for_user(user_id: int):
     db: Session = SessionLocal()

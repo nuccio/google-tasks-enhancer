@@ -480,3 +480,30 @@ def test_sync_error_output_has_no_titles_from_the_sync_itself(db, user, run_sync
         run_sync(google)
 
     assert "Secret" not in capsys.readouterr().out
+
+
+# --- A repeated page token ---
+
+def test_repeated_page_token_stops_the_sync_and_rolls_back(db, user, run_sync, capsys):
+    crud.create_or_update_task(db, {"id": "t1", "title": "Before", "tasklist_id": "list1"}, user_id=user.id)
+    pages = {None: {"items": [{"id": "t1", "title": "Secret after"}], "nextPageToken": "same"},
+             "same": {"items": [{"id": "t2", "title": "Secret two"}], "nextPageToken": "same"}}
+    calls = []
+
+    class LoopingTasks:
+        def list(self, **kwargs):
+            calls.append(kwargs.get("pageToken"))
+            request = MagicMock()
+            request.execute.side_effect = lambda: pages[kwargs.get("pageToken")]
+            return request
+
+    google = single_list([])
+    google.tasks = lambda: LoopingTasks()
+
+    with pytest.raises(ValueError):
+        run_sync(google)
+
+    assert calls == [None, "same"]  # the loop ended instead of asking for "same" again
+    assert stored(db, user, "t1").title == "Before"
+    assert stored(db, user, "t2") is None
+    assert "Secret" not in capsys.readouterr().out

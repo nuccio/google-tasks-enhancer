@@ -4,6 +4,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
+from sqlalchemy import text
 from starlette.middleware.sessions import SessionMiddleware
 
 from backend import crud, models
@@ -49,9 +50,13 @@ def test_get_tasks_leaves_out_deleted_tasks(logged_in_client, db, user):
     db.add_all([
         models.Task(id="open", title="Open", status="needsAction", deleted=False, owner_id=user.id),
         models.Task(id="gone", title="Gone", status="needsAction", deleted=True, owner_id=user.id),
-        models.Task(id="unset", title="Unset", status="needsAction", deleted=None, owner_id=user.id),
+        models.Task(id="unset", title="Unset", status="needsAction", owner_id=user.id),
     ])
     db.commit()
+    # The column default stores False for a task created without 'deleted': force a real NULL
+    db.execute(text("UPDATE tasks SET deleted = NULL WHERE id = 'unset'"))
+    db.commit()
+    assert db.execute(text("SELECT deleted FROM tasks WHERE id = 'unset'")).scalar() is None
 
     response = logged_in_client.get("/tasks/")
 
