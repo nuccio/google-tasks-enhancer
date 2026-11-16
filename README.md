@@ -9,18 +9,18 @@ Google Tasks Enhancer extends Google Tasks. It syncs your tasks from Google Task
 *   **Google OAuth 2.0 sign-in:** Supports signing in with a Google account for several users (web application flow).
 *   **SQLite database:** Uses SQLite for persistence, which is easy to set up and fine for development.
 *   **REST API:** Exposes endpoints to manage the tasks.
-*   **Automatic sync:** Syncs all registered users at start-up and then every 5 minutes.
+*   **Automatic sync:** Syncs all registered users at start-up and then every 5 minutes, and syncs a user when they sign in.
 *   **UI languages:** English (default) and Italian (see [UI languages](#ui-languages)).
 
 ### Data sync logic
 
-The backend keeps the local database in step with Google Tasks. A sync runs for every user at start-up, every 5 minutes after that, and when you call `POST /tasks/sync`. Each sync downloads every task again; it does not ask Google only for what changed.
+The backend keeps the local database in step with Google Tasks. A sync runs for every user at start-up, every 5 minutes after that, when a user signs in, and when you call `POST /tasks/sync`. Each sync downloads every task again; it does not ask Google only for what changed.
 
 1.  **Every task is read.** The app reads every page of the task lists and of the tasks in each list, and asks Google for completed, hidden and deleted tasks too. Tasks completed in the Google Tasks apps are therefore included, and so are very old ones.
 2.  **Google owns its fields.** The title, status, completion time, due date, notes, position, parent and the other fields that Google sends follow Google on every sync: a change made on Google replaces the local value, and a field that Google no longer sends (for example the notes you removed, or the completion time of a task you reopened) is emptied locally. The hashtags are taken from the title, so they follow it too.
 3.  **The app owns its fields.** `priority`, `project_name` and `estimated_time_minutes` exist only in this app. A new task starts with the priority `medium` and no project or estimated time, and a sync never changes these three fields on a task that already exists.
 4.  **Tasks that disappear from Google are kept, hidden.** A task deleted on Google, or one that no list returns any more (also when its whole list was deleted), is not removed from the database: it is marked as deleted and keeps its custom fields. The app no longer shows it. If Google returns it again, for example after an undo, the next sync shows it again with its custom fields. A task that Google returns already deleted and that the app has never stored is not stored.
-5.  **A sync is all or nothing.** The whole sync is one database transaction. If any call to Google or any write fails, the local database stays as it was before the sync.
+5.  **A sync is all or nothing.** The whole sync is one database transaction. If any call to Google or any write fails, your tasks in the local database stay as they were before the sync. One thing is kept even then: when the Google access token had expired, the refreshed token is saved before the sync reads Google. A failed sync reports only the type of the error (and the HTTP status, for an error from Google), never task data; `POST /tasks/sync` answers `500` with that message.
 6.  **No task lists, no change.** If Google returns no task list at all, the sync ends without changing anything, so an odd empty reply cannot hide all your tasks.
 
 #### First sync after upgrading
