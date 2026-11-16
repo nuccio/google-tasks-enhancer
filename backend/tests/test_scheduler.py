@@ -1,7 +1,9 @@
+import traceback
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
+from googleapiclient.errors import HttpError
 
 from backend import scheduler, models, crud
 
@@ -507,3 +509,131 @@ def test_repeated_page_token_stops_the_sync_and_rolls_back(db, user, run_sync, c
     assert stored(db, user, "t1").title == "Before"
     assert stored(db, user, "t2") is None
     assert "Secret" not in capsys.readouterr().out
+
+
+# --- Error messages carry no task data (#104) ---
+
+SECRETS = ("Secret title one", "Secret notes one", "Secret title two", "Secret notes two")
+
+
+def collide_with_another_users_task(db):
+    """
+    Stores a task of another user under the ID the sync will insert, so the commit
+    fails on the primary key and the error text holds the parameters of the insert.
+    """
+    other = crud.create_user(db, email="other@example.com", google_tokens={"access_token": "valid"})
+    crud.create_or_update_task(db, {"id": "dup", "title": "Other user task"}, user_id=other.id)
+
+
+def colliding_google():
+    return single_list([
+        {"id": "new1", "title": SECRETS[0], "notes": SECRETS[1]},
+        {"id": "dup", "title": SECRETS[2], "notes": SECRETS[3]},
+    ])
+
+
+def test_database_error_output_has_no_task_titles_or_notes(db, user, run_sync, capsys):
+    collide_with_another_users_task(db)
+
+    with pytest.raises(ValueError):
+        run_sync(colliding_google())
+
+    captured = capsys.readouterr()
+    output = captured.out + captured.err
+    assert "Error syncing tasks for user" in output
+    assert "IntegrityError" in output
+    for secret in SECRETS:
+        assert secret not in output
+
+
+def test_raised_error_has_no_task_data_and_no_chained_exception(db, user, run_sync):
+    collide_with_another_users_task(db)
+
+    with pytest.raises(ValueError) as raised:
+        run_sync(colliding_google())
+
+    error = raised.value
+    assert str(error) == "Google Tasks sync failed (IntegrityError)"
+    assert error.__suppress_context__ is True
+    rendered = "".join(traceback.format_exception(type(error), error, error.__traceback__))
+    for secret in SECRETS:
+        assert secret not in str(error)
+        assert secret not in rendered
+
+
+def test_google_http_error_gives_the_type_and_the_status_only(db, user, run_sync, capsys):
+    body = b'{"error": {"message": "Secret title one Secret notes one"}}'
+    http_error = HttpError(SimpleNamespace(status=503, reason="Secret title two"), body)
+    google = single_list([])
+    google.tasklists = MagicMock(side_effect=http_error)
+
+    with pytest.raises(ValueError) as raised:
+        run_sync(google)
+
+    error = raised.value
+    assert str(error) == "Google Tasks sync failed (HttpError, HTTP status 503)"
+    assert error.__suppress_context__ is True
+    captured = capsys.readouterr()
+    rendered = "".join(traceback.format_exception(type(error), error, error.__traceback__))
+    for text in (str(error), rendered, captured.out, captured.err):
+        for secret in SECRETS:
+            assert secret not in text
+    assert "HTTP status 503" in captured.out
+
+
+def test_database_error_still_rolls_back_the_whole_sync(db, user, run_sync):
+    collide_with_another_users_task(db)
+    crud.create_or_update_task(db, {"id": "t1", "title": "Before"}, user_id=user.id)
+    google = single_list([
+        {"id": "t1", "title": "After"},
+        {"id": "new1", "title": SECRETS[0]},
+        {"id": "dup", "title": SECRETS[2]},
+    ])
+
+    with patch.object(db, "rollback", wraps=db.rollback) as rollback, pytest.raises(ValueError):
+        run_sync(google)
+
+    assert rollback.called
+    assert stored(db, user, "t1").title == "Before"
+    assert stored(db, user, "new1") is None
+
+
+class HttpErrorWithoutResp(HttpError):
+    """An HttpError whose constructor sets neither resp nor anything else."""
+
+    def __init__(self):
+        self.content = SECRETS[1].encode()
+
+
+def assert_type_only_error(raised, expected_message, capsys):
+    error = raised.value
+    assert str(error) == expected_message
+    assert error.__suppress_context__ is True
+    captured = capsys.readouterr()
+    rendered = "".join(traceback.format_exception(type(error), error, error.__traceback__))
+    for text in (str(error), rendered, captured.out, captured.err):
+        for secret in SECRETS:
+            assert secret not in text
+    assert expected_message in captured.out
+
+
+def test_http_error_without_resp_gives_the_type_alone(db, user, run_sync, capsys):
+    google = single_list([])
+    google.tasklists = MagicMock(side_effect=HttpErrorWithoutResp())
+
+    with pytest.raises(ValueError) as raised:
+        run_sync(google)
+
+    assert_type_only_error(raised, "Google Tasks sync failed (HttpErrorWithoutResp)", capsys)
+
+
+@pytest.mark.parametrize("status", [SECRETS[0], True, None])
+def test_http_error_with_a_status_that_is_not_an_int_gives_the_type_alone(db, user, run_sync, capsys, status):
+    http_error = HttpError(SimpleNamespace(status=status, reason=SECRETS[2]), SECRETS[1].encode())
+    google = single_list([])
+    google.tasklists = MagicMock(side_effect=http_error)
+
+    with pytest.raises(ValueError) as raised:
+        run_sync(google)
+
+    assert_type_only_error(raised, "Google Tasks sync failed (HttpError)", capsys)
