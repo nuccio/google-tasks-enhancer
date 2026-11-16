@@ -5,7 +5,7 @@
       "Bash(gh pr merge *--admin*)",
       "Bash(gh * --admin*)",
       "Bash(git push * main)",
-      "Bash(git push * main:*)",
+      "Bash(git push * main *)",
       "Bash(git push * HEAD:main)",
       "Bash(git push --force*)",
       "Bash(git push -f*)",
