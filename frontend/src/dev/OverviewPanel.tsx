@@ -146,7 +146,7 @@ export default function OverviewPanel({ overview, view, now, onFilter, onShowDel
         <Card
           label="Deleted · hidden"
           value={`${overview.deleted} · ${overview.hidden}`}
-          hint="Hidden from the table unless asked for: click to show them"
+          hint="Deleted tasks are left out of the table unless asked for: click to show them. Hidden tasks (completed in a Google app) are always shown"
           active={view.include_deleted}
           onClick={onShowDeleted}
         />
