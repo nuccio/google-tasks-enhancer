@@ -113,7 +113,7 @@ export default function FilterBar(props: Props) {
           checked={view.include_deleted}
           onChange={(e) => props.onIncludeDeleted(e.target.checked)}
         />
-        <span>show deleted and hidden</span>
+        <span>show deleted</span>
       </label>
       <button type="button" className="dv-button" onClick={props.onClear} disabled={!hasFilters}>
         Clear

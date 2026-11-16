@@ -325,7 +325,6 @@ def get_tasks(
         )
     if not include_deleted:
         conditions.append(_is_not_true(Task.deleted))
-        conditions.append(_is_not_true(Task.hidden))
 
     total = db.execute(select(func.count(Task.id)).where(*conditions)).scalar_one()
 

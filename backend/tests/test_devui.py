@@ -131,7 +131,7 @@ def seeded(db):
 
 
 def visible(tasks):
-    return [t for t in tasks if not t["deleted"] and not t["hidden"]]
+    return [t for t in tasks if not t["deleted"]]
 
 
 def expected_order(tasks, column, order):
@@ -357,12 +357,17 @@ def test_users(dev_client, seeded):
 
 # Tasks list
 
-def test_tasks_default_hides_deleted_and_hidden(dev_client, seeded):
+def test_tasks_default_hides_deleted_and_shows_hidden(dev_client, seeded):
     response = dev_client.get("/dev/api/tasks", params={"limit": 500})
     expected = visible(seeded.tasks)
     assert response.json()["total"] == len(expected)
     assert set(ids(response)) == {t["id"] for t in expected}
     assert len(expected) > 100
+    items = response.json()["items"]
+    assert not any(item["deleted"] for item in items)
+    assert any(item["hidden"] for item in items)
+    hidden_not_deleted = {t["id"] for t in seeded.tasks if t["hidden"] and not t["deleted"]}
+    assert hidden_not_deleted and hidden_not_deleted <= set(ids(response))
 
 
 def test_tasks_default_page(dev_client, seeded):
@@ -370,6 +375,14 @@ def test_tasks_default_page(dev_client, seeded):
     body = response.json()
     assert len(body["items"]) == 50
     assert ids(response) == expected_order(visible(seeded.tasks), "updated", "desc")[:50]
+
+
+def test_tasks_default_treats_empty_deleted_as_false(dev_client, seeded, db):
+    db.query(models.Task).filter(models.Task.id == "t017").update({"deleted": None})
+    db.query(models.Task).filter(models.Task.id == "t019").update({"deleted": None, "hidden": True})
+    db.commit()
+    response = dev_client.get("/dev/api/tasks", params={"limit": 500})
+    assert {"t017", "t019"} <= set(ids(response))
 
 
 def test_tasks_include_deleted(dev_client, seeded):
