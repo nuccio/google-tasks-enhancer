@@ -80,8 +80,8 @@ async def get_all_tasks(request: Request, db: Session = Depends(database.get_db)
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found in DB")
 
-    tasks = crud.get_tasks(db, user_id=user.id)
-    return tasks
+    # Every task that is not deleted, with no row cap
+    return crud.get_user_tasks(db, user_id=user.id)
 
 @app.post("/tasks/sync", tags=["Tasks"], summary="Force a sync")
 async def force_sync(request: Request, db: Session = Depends(database.get_db)):
@@ -147,8 +147,10 @@ async def update_task(
     update_data = task_update.model_dump(exclude_unset=True) if hasattr(task_update, 'model_dump') else task_update.dict(exclude_unset=True)
 
     if google_data:
-        # google_data contains 'status', 'completed', 'updated', 'etag', etc.
-        update_data.update(google_data)
+        # Google's reply goes through the same field rules as the sync
+        google_values = scheduler.google_task_values(google_data)
+        update_data.update(google_values)
+        update_data['hashtags'] = scheduler.extract_hashtags(google_values['title'] or '')
 
     updated_task = crud.create_or_update_task(db, {"id": task_id, **update_data}, user.id)
 

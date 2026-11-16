@@ -1,3 +1,4 @@
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from . import models
 
@@ -24,6 +25,16 @@ def update_user_tokens(db: Session, user_id: int, google_tokens: dict):
 
 def get_tasks(db: Session, user_id: int, skip: int = 0, limit: int = 100):
     return db.query(models.Task).filter(models.Task.owner_id == user_id).offset(skip).limit(limit).all()
+
+def get_user_tasks(db: Session, user_id: int, include_deleted: bool = False):
+    """
+    Every task of the user, with no row cap. Deleted tasks are left out unless
+    include_deleted is set; an empty 'deleted' counts as not deleted.
+    """
+    query = db.query(models.Task).filter(models.Task.owner_id == user_id)
+    if not include_deleted:
+        query = query.filter(or_(models.Task.deleted.is_(False), models.Task.deleted.is_(None)))
+    return query.all()
 
 def get_task(db: Session, task_id: str, user_id: int):
     return db.query(models.Task).filter(models.Task.id == task_id, models.Task.owner_id == user_id).first()
