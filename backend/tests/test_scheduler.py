@@ -590,8 +590,50 @@ def test_database_error_still_rolls_back_the_whole_sync(db, user, run_sync):
         {"id": "dup", "title": SECRETS[2]},
     ])
 
-    with pytest.raises(ValueError):
+    with patch.object(db, "rollback", wraps=db.rollback) as rollback, pytest.raises(ValueError):
         run_sync(google)
 
+    assert rollback.called
     assert stored(db, user, "t1").title == "Before"
     assert stored(db, user, "new1") is None
+
+
+class HttpErrorWithoutResp(HttpError):
+    """An HttpError whose constructor sets neither resp nor anything else."""
+
+    def __init__(self):
+        self.content = SECRETS[1].encode()
+
+
+def assert_type_only_error(raised, expected_message, capsys):
+    error = raised.value
+    assert str(error) == expected_message
+    assert error.__suppress_context__ is True
+    captured = capsys.readouterr()
+    rendered = "".join(traceback.format_exception(type(error), error, error.__traceback__))
+    for text in (str(error), rendered, captured.out, captured.err):
+        for secret in SECRETS:
+            assert secret not in text
+    assert expected_message in captured.out
+
+
+def test_http_error_without_resp_gives_the_type_alone(db, user, run_sync, capsys):
+    google = single_list([])
+    google.tasklists = MagicMock(side_effect=HttpErrorWithoutResp())
+
+    with pytest.raises(ValueError) as raised:
+        run_sync(google)
+
+    assert_type_only_error(raised, "Google Tasks sync failed (HttpErrorWithoutResp)", capsys)
+
+
+@pytest.mark.parametrize("status", [SECRETS[0], True, None])
+def test_http_error_with_a_status_that_is_not_an_int_gives_the_type_alone(db, user, run_sync, capsys, status):
+    http_error = HttpError(SimpleNamespace(status=status, reason=SECRETS[2]), SECRETS[1].encode())
+    google = single_list([])
+    google.tasklists = MagicMock(side_effect=http_error)
+
+    with pytest.raises(ValueError) as raised:
+        run_sync(google)
+
+    assert_type_only_error(raised, "Google Tasks sync failed (HttpError)", capsys)

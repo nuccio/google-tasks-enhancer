@@ -207,8 +207,8 @@ def sync_tasks_for_user(user_id: int):
         # the exception text can carry SQL parameters or a response body with task titles and notes.
         error_message = f"Google Tasks sync failed ({type(e).__name__})"
         if isinstance(e, HttpError):
-            status = getattr(e.resp, "status", None)
-            if status is not None:
+            status = getattr(getattr(e, "resp", None), "status", None)
+            if isinstance(status, int) and not isinstance(status, bool):
                 error_message = f"Google Tasks sync failed ({type(e).__name__}, HTTP status {status})"
         print(f"Error syncing tasks for user {user_id}: {error_message}")
         # Re-raised as ValueError, which the endpoints turn into an HTTP error.
